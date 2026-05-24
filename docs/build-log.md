@@ -73,7 +73,7 @@ via Terraform from this host. **Decision:** proceed on the 100 Mbps link for now
 
 ---
 
-## Phase 3 — Automation Foundation (Terraform)  🟡 IN PROGRESS  (2026-05-24)
+## Phase 3 — Automation Foundation (Terraform)  ✅ COMPLETE  (2026-05-24)
 
 Goal: provision cluster VMs as code via the Terraform **vSphere provider** (unlocked
 by the Enterprise Plus license). We connect **directly to the standalone ESXi host**
@@ -89,7 +89,22 @@ Layout: `terraform/environments/prod/` is the root config; a reusable
 ### Steps
 - [x] **Step 1 — Connectivity validation:** `terraform init/plan` confirmed auth to ESXi and resolved `ha-datacenter` / `datastore1` / `VM Network` (+ the host). 0 resources. (First plan failed on the placeholder password — expected; fixed by editing `terraform.tfvars`.)
 - [x] **Step 2 — `talos-vm` module:** written at `terraform/modules/talos-vm/` — pvscsi + vmxnet3, optional Longhorn data disk, ISO boot, `wait_for_guest_*_timeout = 0` (Talos has no guest agent). Root reads the ESXi host (`id=ha-host`; display name is null on standalone ESXi — cosmetic).
-- [~] **Step 3 — Node definitions written:** 3 cp (4 vCPU/16 GB/60 GB) + 3 wk (8 vCPU/48 GB/60 GB + 100 GB Longhorn) via `for_each` over the module; ISO `ISOs/talos/metal-amd64.iso`. **Awaiting `terraform apply` (needs user confirmation).**
+- [x] **Step 3 — Nodes created:** `terraform apply` → `6 added, 0 changed, 0 destroyed`. All 6 VMs (3 cp 4vCPU/16GB/60GB + 3 wk 8vCPU/48GB/60GB+100GB Longhorn) powered on and booting the Talos ISO into maintenance mode. VM IDs in `terraform output` / state.
+
+---
+
+## Phase 4 — Talos Kubernetes Deployment  ⏸ NOT STARTED
+
+Best done **after** the gigabit switch is installed (faster image pulls) and the
+Orbi DHCP pool is narrowed (so static node IPs are free).
+
+Plan:
+- Narrow Orbi DHCP `.2–.254` → `.100–.200`.
+- Cluster K8s version is set by Talos `v1.13.2`; align `kubectl` to it.
+- Control-plane **VIP `192.168.216.40`**; static IPs cp `.41–.43`, wk `.51–.53`.
+- `talosctl gen config` → patches (VIP, install disk `/dev/sda`, static IPs, allow
+  scheduling? no) → `apply-config` to each node's maintenance IP → `talosctl bootstrap`
+  (etcd, once) → fetch kubeconfig → validate nodes (they'll be `NotReady` until Cilium).
 
 ---
 
@@ -123,6 +138,7 @@ cp terraform.tfvars.example terraform.tfvars && chmod 600 terraform.tfvars
 # (edit terraform.tfvars: set vsphere_password)
 terraform init
 terraform plan
+terraform apply   # typed 'yes' -> 6 Talos VMs created
 ```
 
 ---
