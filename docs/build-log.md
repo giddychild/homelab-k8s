@@ -67,8 +67,9 @@ via Terraform from this host. **Decision:** proceed on the 100 Mbps link for now
 ### Steps
 - [x] **Step 1 — ISO uploaded:** `[datastore1] ISOs/linux/ubuntu/ubuntu-24.04.4-live-server-amd64.iso` (3.17 GB).
 - [x] **Step 2 — VM created:** `mgmt-jump` created with the spec above; powered on to the Ubuntu installer.
-- [ ] **Step 3 — Install Ubuntu:** language/keyboard, DHCP networking, OpenSSH server, user account.
-- [ ] **Step 4 — Toolchain:** SSH in, reserve `.30` in Orbi, install talosctl/kubectl/helm/terraform/ansible, clone repo.
+- [x] **Step 3 — Ubuntu installed:** hostname `mgmt-jump`, user `seyi`, OpenSSH server enabled. NIC `ens160` (VMXNET3), MAC `00:0c:29:7b:49:ed`, DHCP IP `192.168.216.112` (to be reserved as `.30`).
+- [ ] **Step 4 — Network + access:** reserve `.30` in Orbi (by MAC), confirm SSH from Windows.
+- [ ] **Step 5 — Toolchain:** install talosctl/kubectl/helm/terraform/ansible via repo bootstrap script; clone repo.
 
 ---
 
@@ -104,7 +105,8 @@ git push -u origin main                   # interactive: username giddychild + P
 | Datastore | `datastore1` (2.6 TB HDD, ~1.1 TB free) |
 | Ubuntu ISO | `[datastore1] ISOs/linux/ubuntu/ubuntu-24.04.4-live-server-amd64.iso` |
 | Git repo | https://github.com/giddychild/homelab-k8s |
-| `mgmt-jump` (planned IP) | `192.168.216.30` |
+| `mgmt-jump` IP | `192.168.216.112` (DHCP now) → reserve as `192.168.216.30` |
+| `mgmt-jump` MAC / NIC / user | `00:0c:29:7b:49:ed` / `ens160` (VMXNET3) / `seyi` |
 | Talos API VIP (planned) | `192.168.216.40` |
 | Control plane (planned) | `192.168.216.41–43` |
 | Workers (planned) | `192.168.216.51–53` |
