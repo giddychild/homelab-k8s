@@ -87,11 +87,9 @@ Layout: `terraform/environments/prod/` is the root config; a reusable
 > comments on their own lines; `terraform.tfvars` is now properly excluded.
 
 ### Steps
-- [ ] **Step 1 — Connectivity validation:** provider + read-only data sources
-  (datacenter/datastore/network). `terraform init && terraform plan` proves auth
-  works and that `datastore1` / `VM Network` resolve. No resources created.
-- [ ] **Step 2 — `talos-vm` module:** reusable VM definition (CPU/RAM/disks/NIC, Talos ISO boot).
-- [ ] **Step 3 — Stamp the nodes:** 3 control-plane + 3 workers via the module.
+- [x] **Step 1 — Connectivity validation:** `terraform init/plan` confirmed auth to ESXi and resolved `ha-datacenter` / `datastore1` / `VM Network` (+ the host). 0 resources. (First plan failed on the placeholder password — expected; fixed by editing `terraform.tfvars`.)
+- [~] **Step 2 — `talos-vm` module:** written at `terraform/modules/talos-vm/` — pvscsi + vmxnet3, optional Longhorn data disk, ISO boot, `wait_for_guest_*_timeout = 0` (Talos has no guest agent). Root config now also reads the ESXi host. *Pending: Talos ISO upload + wiring node definitions.*
+- [ ] **Step 3 — Stamp the nodes:** 3 control-plane + 3 workers via the module; `terraform apply`.
 
 ---
 
@@ -151,7 +149,8 @@ terraform plan
 ## Appendix C — Pending / deferred items
 
 - [ ] Install gigabit switch + confirm `vmnic0 = 1000 Mbps` (reminder set for 2026-05-25).
-- [ ] Narrow Orbi DHCP `.2–.254` → `.100–.200` (do before cluster provisioning).
+- [ ] Upload Talos `v1.13.2` `metal-amd64.iso` to `datastore1` (`ISOs/linux/talos/`).
+- [ ] Narrow Orbi DHCP `.2–.254` → `.100–.200` (do before assigning static node IPs in Phase 4).
 - [x] Reserved `192.168.216.30` for `mgmt-jump` in Orbi (MAC `00:0c:29:7b:49:ed`).
 - [ ] (Optional, future) Consider an SSD for etcd; managed-switch enables a future pfSense/OPNsense VLAN router.
 - [ ] (Security, Phase 9) Replace plaintext PAT storage with SSH keys / short-lived creds.

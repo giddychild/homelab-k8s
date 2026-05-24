@@ -21,11 +21,18 @@ data "vsphere_network" "net" {
   datacenter_id = data.vsphere_datacenter.dc.id
 }
 
+# Standalone ESXi has exactly one host, so `name` can be omitted — the data
+# source returns that host. We use it to place VMs (resource pool + host id).
+data "vsphere_host" "host" {
+  datacenter_id = data.vsphere_datacenter.dc.id
+}
+
 output "connectivity_check" {
   description = "If this resolves, Terraform can talk to ESXi and the names are valid."
   value = {
     datacenter = data.vsphere_datacenter.dc.name
     datastore  = data.vsphere_datastore.ds.name
     network    = data.vsphere_network.net.name
+    host       = data.vsphere_host.host.name
   }
 }
