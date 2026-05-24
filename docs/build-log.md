@@ -99,9 +99,9 @@ Best done **after** the gigabit switch is installed (faster image pulls) and the
 Orbi DHCP pool is narrowed (so static node IPs are free).
 
 Plan:
-- Narrow Orbi DHCP `.2–.254` → `.100–.200`.
+- Cap Orbi DHCP at `.199` (change END `.254 → .199`) so the `.200+` static block is free.
 - Cluster K8s version is set by Talos `v1.13.2`; align `kubectl` to it.
-- Control-plane **VIP `192.168.216.40`**; static IPs cp `.41–.43`, wk `.51–.53`.
+- Control-plane **VIP `192.168.216.200`**; static IPs cp `.201–.203`, wk `.211–.213`; LB pool `.230–.250`.
 - `talosctl gen config` → patches (VIP, install disk `/dev/sda`, static IPs, allow
   scheduling? no) → `apply-config` to each node's maintenance IP → `talosctl bootstrap`
   (etcd, once) → fetch kubeconfig → validate nodes (they'll be `NotReady` until Cilium).
@@ -167,7 +167,7 @@ terraform apply   # typed 'yes' -> 6 Talos VMs created
 
 - [ ] Install gigabit switch + confirm `vmnic0 = 1000 Mbps` (reminder set for 2026-05-25).
 - [x] Uploaded Talos `metal-amd64.iso` to `[datastore1] ISOs/talos/` (318 MB).
-- [ ] Narrow Orbi DHCP `.2–.254` → `.100–.200` (do before assigning static node IPs in Phase 4).
+- [ ] Cap Orbi DHCP at `.199` (END `.254 → .199`) so cluster statics `.200+` are free.
 - [x] Reserved `192.168.216.30` for `mgmt-jump` in Orbi (MAC `00:0c:29:7b:49:ed`).
 - [ ] (Optional, future) Consider an SSD for etcd; managed-switch enables a future pfSense/OPNsense VLAN router.
 - [ ] (Security, Phase 9) Replace plaintext PAT storage with SSH keys / short-lived creds.

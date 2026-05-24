@@ -23,7 +23,7 @@
         ║   ┌────────────────────────────────────────────────┐    ║
         ║   │  CONTROL PLANE (HA — etcd quorum of 3)          │    ║
         ║   │   talos-cp-01/02/03  4 vCPU / 16 GB / 60 GB     │    ║
-        ║   │        ▲ Talos VIP 192.168.216.40 = API endpoint│    ║
+        ║   │        ▲ Talos VIP 192.168.216.200 = API endpoint│   ║
         ║   ├────────────────────────────────────────────────┤    ║
         ║   │  WORKERS                                        │    ║
         ║   │   talos-wk-01/02/03  8 vCPU / 48 GB             │    ║
