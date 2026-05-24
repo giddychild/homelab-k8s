@@ -1,0 +1,14 @@
+# Copy this to terraform.tfvars (which is gitignored) and fill in real values:
+#   cp terraform.tfvars.example terraform.tfvars
+#   chmod 600 terraform.tfvars
+#
+# NEVER commit terraform.tfvars — it holds your ESXi password.
+
+vsphere_server   = "192.168.216.216"
+vsphere_user     = "root"
+vsphere_password = "CHANGE_ME"
+
+# Optional overrides (defaults already match this environment):
+# vsphere_datacenter = "ha-datacenter"
+# vsphere_datastore  = "datastore1"
+# vsphere_network    = "VM Network"

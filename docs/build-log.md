@@ -55,7 +55,7 @@ Goal: understand the real environment before building anything.
 
 ---
 
-## Phase 2 — VMware Foundation  🟡 IN PROGRESS  (2026-05-24)
+## Phase 2 — VMware Foundation  ✅ COMPLETE  (2026-05-24)
 
 Building `mgmt-jump` — the single intentionally-manual VM that will host the
 toolchain (talosctl/kubectl/helm/terraform/ansible). All later VMs are automated
@@ -69,7 +69,29 @@ via Terraform from this host. **Decision:** proceed on the 100 Mbps link for now
 - [x] **Step 2 — VM created:** `mgmt-jump` created with the spec above; powered on to the Ubuntu installer.
 - [x] **Step 3 — Ubuntu installed:** hostname `mgmt-jump`, user `seyi`, OpenSSH server enabled. NIC `ens160` (VMXNET3), MAC `00:0c:29:7b:49:ed`, DHCP IP `192.168.216.112` (to be reserved as `.30`).
 - [x] **Step 4 — Network + access:** reserved `.30` in Orbi (MAC `00:0c:29:7b:49:ed`); SSH from Windows works (`ssh seyi@192.168.216.30`).
-- [ ] **Step 5 — Toolchain:** run `scripts/bootstrap-mgmt.sh` on mgmt-jump → installs kubectl/helm/talosctl/terraform/ansible + base utils.
+- [x] **Step 5 — Toolchain installed** via `scripts/bootstrap-mgmt.sh`: kubectl `v1.36.1`, talosctl `v1.13.2`, helm `v3.21.0`, terraform `v1.15.4`, ansible `core 2.16.3`.
+
+---
+
+## Phase 3 — Automation Foundation (Terraform)  🟡 IN PROGRESS  (2026-05-24)
+
+Goal: provision cluster VMs as code via the Terraform **vSphere provider** (unlocked
+by the Enterprise Plus license). We connect **directly to the standalone ESXi host**
+(no vCenter), so the implicit datacenter is `ha-datacenter`.
+
+Layout: `terraform/environments/prod/` is the root config; a reusable
+`terraform/modules/talos-vm/` will define a single VM (added next).
+
+> 🔒 Fixed a `.gitignore` bug first: inline comments had broken the `*.tfvars`
+> rule, so credential files were not actually being ignored. Rewritten with
+> comments on their own lines; `terraform.tfvars` is now properly excluded.
+
+### Steps
+- [ ] **Step 1 — Connectivity validation:** provider + read-only data sources
+  (datacenter/datastore/network). `terraform init && terraform plan` proves auth
+  works and that `datastore1` / `VM Network` resolve. No resources created.
+- [ ] **Step 2 — `talos-vm` module:** reusable VM definition (CPU/RAM/disks/NIC, Talos ISO boot).
+- [ ] **Step 3 — Stamp the nodes:** 3 control-plane + 3 workers via the module.
 
 ---
 
@@ -91,6 +113,18 @@ git commit -m "chore: normalize line endings to LF via .gitattributes" ...
 git remote add origin https://github.com/giddychild/homelab-k8s.git
 git config credential.helper store        # local to repo
 git push -u origin main                   # interactive: username giddychild + PAT
+
+# Phase 2 Step 5 — toolchain (on mgmt-jump, user seyi)
+sudo apt-get update && sudo apt-get install -y git
+git clone https://github.com/giddychild/homelab-k8s.git
+cd homelab-k8s && ./scripts/bootstrap-mgmt.sh
+
+# Phase 3 Step 1 — Terraform connectivity validation (on mgmt-jump)
+cd ~/homelab-k8s/terraform/environments/prod
+cp terraform.tfvars.example terraform.tfvars && chmod 600 terraform.tfvars
+# (edit terraform.tfvars: set vsphere_password)
+terraform init
+terraform plan
 ```
 
 ---

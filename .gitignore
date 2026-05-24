@@ -1,39 +1,49 @@
-# ---- Secrets & credentials (NEVER commit in plaintext) ----
-# Talos cluster admin credentials & kube access
+# ===== Secrets & credentials (NEVER commit in plaintext) =====
+# NOTE: .gitignore does NOT support inline (end-of-line) comments — every comment
+# must be on its own line, or it becomes part of the pattern. Keep it that way.
+
+# Talos cluster credentials & kube access
 talos/talosconfig
 talos/secrets.yaml
 **/kubeconfig
 **/*.kubeconfig
-# age private keys (the keys that decrypt SOPS secrets)
+# age private keys (decrypt SOPS secrets)
 *.agekey
 key.txt
 age.key
-# Anything explicitly marked secret/plaintext
+# explicit plaintext-secret markers
 *.secret
 *.secret.yaml
 *-unencrypted.yaml
 
-# ---- Terraform ----
+# ===== Terraform =====
+# Local provider/plugin cache
 **/.terraform/*
+# State files (can contain secrets in plaintext)
 *.tfstate
 *.tfstate.*
 crash.log
 crash.*.log
-*.tfvars            # may contain vSphere creds — keep out of git
+# Variable files frequently hold credentials (e.g. the ESXi password)
+*.tfvars
 *.tfvars.json
+# ...but DO keep the committed, secret-free template:
+!*.tfvars.example
+# Override files
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+# CLI config
 .terraformrc
 terraform.rc
-.terraform.lock.hcl  # optional: commit if you want pinned providers
+# (.terraform.lock.hcl is intentionally NOT ignored — commit it to pin providers)
 
-# ---- Ansible ----
+# ===== Ansible =====
 ansible/*.retry
 ansible/vault-password*
 
-# ---- Editors / OS ----
+# ===== Editors / OS =====
 .idea/
 .vscode/
 *.swp
