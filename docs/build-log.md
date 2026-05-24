@@ -68,8 +68,8 @@ via Terraform from this host. **Decision:** proceed on the 100 Mbps link for now
 - [x] **Step 1 — ISO uploaded:** `[datastore1] ISOs/linux/ubuntu/ubuntu-24.04.4-live-server-amd64.iso` (3.17 GB).
 - [x] **Step 2 — VM created:** `mgmt-jump` created with the spec above; powered on to the Ubuntu installer.
 - [x] **Step 3 — Ubuntu installed:** hostname `mgmt-jump`, user `seyi`, OpenSSH server enabled. NIC `ens160` (VMXNET3), MAC `00:0c:29:7b:49:ed`, DHCP IP `192.168.216.112` (to be reserved as `.30`).
-- [ ] **Step 4 — Network + access:** reserve `.30` in Orbi (by MAC), confirm SSH from Windows.
-- [ ] **Step 5 — Toolchain:** install talosctl/kubectl/helm/terraform/ansible via repo bootstrap script; clone repo.
+- [x] **Step 4 — Network + access:** reserved `.30` in Orbi (MAC `00:0c:29:7b:49:ed`); SSH from Windows works (`ssh seyi@192.168.216.30`).
+- [ ] **Step 5 — Toolchain:** run `scripts/bootstrap-mgmt.sh` on mgmt-jump → installs kubectl/helm/talosctl/terraform/ansible + base utils.
 
 ---
 
@@ -105,7 +105,7 @@ git push -u origin main                   # interactive: username giddychild + P
 | Datastore | `datastore1` (2.6 TB HDD, ~1.1 TB free) |
 | Ubuntu ISO | `[datastore1] ISOs/linux/ubuntu/ubuntu-24.04.4-live-server-amd64.iso` |
 | Git repo | https://github.com/giddychild/homelab-k8s |
-| `mgmt-jump` IP | `192.168.216.112` (DHCP now) → reserve as `192.168.216.30` |
+| `mgmt-jump` IP | `192.168.216.30` (Orbi reservation, MAC `00:0c:29:7b:49:ed`) |
 | `mgmt-jump` MAC / NIC / user | `00:0c:29:7b:49:ed` / `ens160` (VMXNET3) / `seyi` |
 | Talos API VIP (planned) | `192.168.216.40` |
 | Control plane (planned) | `192.168.216.41–43` |
@@ -118,7 +118,7 @@ git push -u origin main                   # interactive: username giddychild + P
 
 - [ ] Install gigabit switch + confirm `vmnic0 = 1000 Mbps` (reminder set for 2026-05-25).
 - [ ] Narrow Orbi DHCP `.2–.254` → `.100–.200` (do before cluster provisioning).
-- [ ] Reserve `192.168.216.30` for `mgmt-jump` in Orbi (after its MAC is known).
+- [x] Reserved `192.168.216.30` for `mgmt-jump` in Orbi (MAC `00:0c:29:7b:49:ed`).
 - [ ] (Optional, future) Consider an SSD for etcd; managed-switch enables a future pfSense/OPNsense VLAN router.
 - [ ] (Security, Phase 9) Replace plaintext PAT storage with SSH keys / short-lived creds.
 ```
