@@ -1,0 +1,41 @@
+# ---- Secrets & credentials (NEVER commit in plaintext) ----
+# Talos cluster admin credentials & kube access
+talos/talosconfig
+talos/secrets.yaml
+**/kubeconfig
+**/*.kubeconfig
+# age private keys (the keys that decrypt SOPS secrets)
+*.agekey
+key.txt
+age.key
+# Anything explicitly marked secret/plaintext
+*.secret
+*.secret.yaml
+*-unencrypted.yaml
+
+# ---- Terraform ----
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars            # may contain vSphere creds — keep out of git
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+.terraform.lock.hcl  # optional: commit if you want pinned providers
+
+# ---- Ansible ----
+ansible/*.retry
+ansible/vault-password*
+
+# ---- Editors / OS ----
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

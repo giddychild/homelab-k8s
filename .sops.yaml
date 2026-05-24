@@ -1,0 +1,16 @@
+# SOPS encryption rules — set up properly in Phase 9 (Security).
+#
+# WHY: GitOps requires config to live in git, but secrets must not be plaintext.
+# SOPS encrypts only the VALUES inside YAML (keys stay readable), using an `age`
+# key. Encrypted files are safe to commit; ArgoCD/operators decrypt at apply time.
+#
+# To activate later:
+#   1. Install: sops + age
+#   2. Generate a key:  age-keygen -o age.key   (age.key is gitignored!)
+#   3. Put the PUBLIC key in `age:` below
+#   4. Encrypt:  sops --encrypt secret.yaml > secret.enc.yaml
+#
+# creation_rules:
+#   - path_regex: .*\.enc\.yaml$
+#     encrypted_regex: '^(data|stringData)$'
+#     age: 'age1placeholderpublickeygoeshere...'
