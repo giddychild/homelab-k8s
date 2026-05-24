@@ -1,0 +1,13 @@
+# Normalize all text files to LF in the repo (checked out as LF even on Windows).
+# This repo is consumed by Linux tooling (Talos, Ansible, Kubernetes), where CRLF
+# breaks shell scripts and some YAML parsers.
+* text=auto eol=lf
+
+# Binary files — never normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.gz binary
+*.tar binary
+*.zip binary
