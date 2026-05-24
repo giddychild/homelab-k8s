@@ -88,8 +88,8 @@ Layout: `terraform/environments/prod/` is the root config; a reusable
 
 ### Steps
 - [x] **Step 1 — Connectivity validation:** `terraform init/plan` confirmed auth to ESXi and resolved `ha-datacenter` / `datastore1` / `VM Network` (+ the host). 0 resources. (First plan failed on the placeholder password — expected; fixed by editing `terraform.tfvars`.)
-- [~] **Step 2 — `talos-vm` module:** written at `terraform/modules/talos-vm/` — pvscsi + vmxnet3, optional Longhorn data disk, ISO boot, `wait_for_guest_*_timeout = 0` (Talos has no guest agent). Root config now also reads the ESXi host. *Pending: Talos ISO upload + wiring node definitions.*
-- [ ] **Step 3 — Stamp the nodes:** 3 control-plane + 3 workers via the module; `terraform apply`.
+- [x] **Step 2 — `talos-vm` module:** written at `terraform/modules/talos-vm/` — pvscsi + vmxnet3, optional Longhorn data disk, ISO boot, `wait_for_guest_*_timeout = 0` (Talos has no guest agent). Root reads the ESXi host (`id=ha-host`; display name is null on standalone ESXi — cosmetic).
+- [~] **Step 3 — Node definitions written:** 3 cp (4 vCPU/16 GB/60 GB) + 3 wk (8 vCPU/48 GB/60 GB + 100 GB Longhorn) via `for_each` over the module; ISO `ISOs/talos/metal-amd64.iso`. **Awaiting `terraform apply` (needs user confirmation).**
 
 ---
 
@@ -136,6 +136,7 @@ terraform plan
 | Subnet | `192.168.216.0/24` |
 | Datastore | `datastore1` (2.6 TB HDD, ~1.1 TB free) |
 | Ubuntu ISO | `[datastore1] ISOs/linux/ubuntu/ubuntu-24.04.4-live-server-amd64.iso` |
+| Talos ISO | `[datastore1] ISOs/talos/metal-amd64.iso` (Talos v1.13.2, 318 MB) |
 | Git repo | https://github.com/giddychild/homelab-k8s |
 | `mgmt-jump` IP | `192.168.216.30` (Orbi reservation, MAC `00:0c:29:7b:49:ed`) |
 | `mgmt-jump` MAC / NIC / user | `00:0c:29:7b:49:ed` / `ens160` (VMXNET3) / `seyi` |
@@ -149,7 +150,7 @@ terraform plan
 ## Appendix C — Pending / deferred items
 
 - [ ] Install gigabit switch + confirm `vmnic0 = 1000 Mbps` (reminder set for 2026-05-25).
-- [ ] Upload Talos `v1.13.2` `metal-amd64.iso` to `datastore1` (`ISOs/linux/talos/`).
+- [x] Uploaded Talos `metal-amd64.iso` to `[datastore1] ISOs/talos/` (318 MB).
 - [ ] Narrow Orbi DHCP `.2–.254` → `.100–.200` (do before assigning static node IPs in Phase 4).
 - [x] Reserved `192.168.216.30` for `mgmt-jump` in Orbi (MAC `00:0c:29:7b:49:ed`).
 - [ ] (Optional, future) Consider an SSD for etcd; managed-switch enables a future pfSense/OPNsense VLAN router.

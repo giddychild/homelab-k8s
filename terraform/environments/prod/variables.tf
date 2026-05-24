@@ -33,3 +33,9 @@ variable "vsphere_network" {
   description = "Port group VMs attach to."
   default     = "VM Network"
 }
+
+variable "talos_iso_path" {
+  type        = string
+  description = "Path to the Talos ISO within the datastore."
+  default     = "ISOs/talos/metal-amd64.iso"
+}
