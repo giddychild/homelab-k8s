@@ -10,6 +10,11 @@ machine:
         routes:
           - network: 0.0.0.0/0
             gateway: 192.168.216.1
+  # Dedicated Longhorn data disk: partition + format + mount /dev/sdb (100 GB).
+  disks:
+    - device: /dev/sdb
+      partitions:
+        - mountpoint: /var/lib/longhorn
 ---
 apiVersion: v1alpha1
 kind: HostnameConfig
