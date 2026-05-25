@@ -52,13 +52,13 @@ spec:
         # We use File System Backup, not volume snapshots → no snapshot location.
         snapshotsEnabled: false
         deployNodeAgent: true                   # node-agent daemonset for kopia FSB
-        # Daily backup of everything, FS-backed, kept 7 days.
+        # Daily backup of everything, FS-backed, kept 3 days.
         schedules:
           daily:
             disabled: false
             schedule: "0 3 * * *"
             template:
-              ttl: 168h
+              ttl: 72h
               defaultVolumesToFsBackup: true
               includedNamespaces:
                 - "*"
