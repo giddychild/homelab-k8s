@@ -1,0 +1,16 @@
+# Longhorn Helm values for this homelab.
+#
+# Workers only: control-plane nodes are tainted NoSchedule and Longhorn's
+# components don't tolerate that taint, so they naturally land on workers,
+# which are the nodes with the dedicated /dev/sdb data disk.
+
+defaultSettings:
+  # Matches the disk we mounted on each worker (Talos machine.disks).
+  defaultDataPath: /var/lib/longhorn
+  # 3 workers → one replica per worker for fault tolerance.
+  defaultReplicaCount: 3
+
+persistence:
+  # Make "longhorn" the cluster's default StorageClass.
+  defaultClass: true
+  defaultClassReplicaCount: 3

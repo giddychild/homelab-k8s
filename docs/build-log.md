@@ -139,10 +139,10 @@ layering on platform services.
 ### Steps
 - [x] **Step 1 — Cilium `v1.19.4` installed** ✅ — Helm into `kube-system` with `kubernetes/bootstrap/cilium/values.yaml`. DaemonSet rolled out 6/6 (cilium + cilium-envoy per node) + operator + Hubble relay/UI. **All 6 nodes `Ready`** — cluster fully functional.
   > Observed: Pod Security Admission is active (Talos default) — a plain `nginx` pod triggers `restricted` *warnings*. Privileged components (e.g. Longhorn) will need their namespace labeled `pod-security.kubernetes.io/enforce: privileged`.
-- [~] **Step 2 — Longhorn** replicated storage (workers' `/dev/sdb`). Talos prereqs:
-  (2a) add `iscsi-tools` + `util-linux-tools` system extensions via Image Factory + `talosctl upgrade` (Longhorn needs iSCSI);
-  (2b) mount `/dev/sdb` at `/var/mnt/longhorn` via `machine.disks`;
-  (2c) Helm install, namespace labeled `privileged`, restricted to workers. Schematic: `talos/schematic.yaml`.
+- [~] **Step 2 — Longhorn** replicated storage (workers' `/dev/sdb`):
+  - [x] **2a** — `iscsi-tools` v0.2.0 + `util-linux-tools` 2.41.4 added to all 3 workers via Image Factory (`talos/schematic.yaml`, id `613e1592b2da...961245`) + rolling `talosctl upgrade --image factory.talos.dev/installer/<id>:v1.13.2`.
+  - [x] **2b** — `/dev/sdb` mounted at `/var/lib/longhorn` (xfs) on all 3 workers via `machine.disks`.
+  - [~] **2c** — Helm install into `longhorn-system` (PSS `privileged`), workers-only (CPs tainted), `longhorn` as default StorageClass. Manifests in `kubernetes/bootstrap/longhorn/`.
 - [ ] **Step 3 — Ingress controller + cert-manager** (TLS).
 - [ ] **Step 4 — Cilium LB-IPAM + L2 announcements** (LoadBalancer pool `.230–.250`).
 - [ ] **Step 5 — Namespaces, RBAC, Pod Security Standards.**
