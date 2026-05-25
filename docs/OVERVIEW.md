@@ -31,7 +31,8 @@ the repo *is* the system.
 | **AI chat UI** | **Open WebUI** | A ChatGPT-style interface wired to the local models |
 | **Automation / agents** | **n8n** | Workflow automation — hosts the AI ops agents |
 | **Secrets management** | **HashiCorp Vault + External Secrets Operator** | Central, audited secret storage; secrets are *referenced* (not stored) in Git and synced into the cluster |
-| **Remote access** *(in progress)* | **Tailscale** | Private, zero-trust access to cluster services from anywhere |
+| **Remote access** | **Tailscale** | Private, zero-trust access to cluster services from anywhere (operator + API-server proxy) |
+| **Backup / DR** | **Velero** | Scheduled backups of cluster resources + volume data (kopia) to AWS S3, for disaster recovery |
 
 ## How it was built (the process)
 
@@ -58,4 +59,4 @@ the repo *is* the system.
 - **Everything as code:** the entire platform lives in a public GitHub repo with a detailed, step-by-step build log — reproducible from scratch.
 
 ## Current status
-**Phases 1–9 complete** (planning → HA cluster → platform services → GitOps → observability → AI ops → security). **Phase 10 (production readiness)** — backup/DR, upgrade & chaos testing, runbooks — is next.
+**Phases 1–9 complete** (planning → HA cluster → platform services → GitOps → observability → AI ops → security). **Phase 10 (production readiness) in progress** — Velero backups to AWS S3 are live; Talos etcd snapshots, restore drills, upgrade runbooks, and chaos testing remain.

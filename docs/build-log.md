@@ -239,6 +239,22 @@ Production-grade, job-market-relevant tooling (user's explicit goal).
 
 ---
 
+## Phase 10 — Production readiness  🟡 IN PROGRESS  (2026-05-25)
+
+DR layers: (1) cluster config/apps already recoverable from **Git + ArgoCD**; (2) volume + resource backups via **Velero → S3**; (3) cluster state via **Talos etcd snapshots**; then restore drills, upgrade runbooks, chaos testing.
+
+### Steps
+- [x] **Step 1 — Velero backup/restore → AWS S3** ✅. `gitops/apps/velero.yaml` (chart `12.0.1` = Velero 1.18.0, plugin `velero-plugin-for-aws:v1.14.1`); node-agent **File System Backup (kopia)** captures PV contents + k8s resources. Bucket `155125294186-homelab-k8s-backups` (`us-east-1`), least-priv IAM user; creds in Vault `secret/velero` → ESO templates the `cloud` AWS-creds file into Secret `velero-credentials` (`gitops/workloads/eso-config/velero-externalsecret.yaml`, none in Git). Daily schedule `velero-daily` 03:00, **ttl 72h** (3-day retention). **Verified:** BSL `Available`; manual backup `Completed` 37/37 items to S3.
+  - **Decision (R2 → S3):** started on Cloudflare R2 (free, no egress) but R2 doesn't implement S3 object tagging → AWS plugin v1.9+ sends an empty `x-amz-tagging` header R2 rejects with `501 NotImplemented` (no BSL flag disables it; same break hits MinIO/B2/Oracle/etc.). Switched to AWS S3, where the latest Velero works natively.
+  - **Chart gotchas:** chart 11.4.0's CRD-upgrade hook hardcodes the now-dead `docker.io/bitnamilegacy/kubectl:1.36` (Bitnami sunset their free images; max tag is 1.33.4) → blocks the sync. Fixed via chart 12.0.1 + `upgradeCRDs: false` (the 13 CRDs install from the chart's `crds/` dir, which ArgoCD applies). ArgoCD's `hook-finalizer` also wedged the failed hook Job in `Terminating` — clear with `kubectl patch job velero-upgrade-crds -n velero -p '{"metadata":{"finalizers":null}}' --type=merge`.
+  - **Cost:** retention is driven by Velero `ttl` only — **do NOT** add an S3 object-expiration lifecycle rule (it would delete shared kopia dedup blobs and corrupt the repo). The only safe S3 lifecycle rule is *abort incomplete multipart uploads after 7d*. Ollama's ~30Gi model volume is backed up but re-downloadable — exclude later if size/cost grows.
+- [ ] **Step 2 — Talos `etcd` snapshots** (cluster state) → S3.
+- [ ] **Step 3 — Restore drill** (prove DR end-to-end).
+- [ ] **Step 4 — Upgrade runbooks** (Talos + Kubernetes).
+- [ ] **Step 5 — Chaos test** (node failure + recovery).
+
+---
+
 ## Appendix A — Commands run (chronological)
 
 ```powershell
