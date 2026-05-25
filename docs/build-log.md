@@ -93,7 +93,7 @@ Layout: `terraform/environments/prod/` is the root config; a reusable
 
 ---
 
-## Phase 4 — Talos Kubernetes Deployment  🟡 IN PROGRESS  (2026-05-24)
+## Phase 4 — Talos Kubernetes Deployment  ✅ COMPLETE  (2026-05-24)
 
 Proceeding on the 100 Mbps link (image pulls just slower). Control-plane **VIP
 `192.168.216.200`**; static IPs cp `.201–.203`, wk `.211–.213`. CNI disabled (Cilium
@@ -108,7 +108,7 @@ comes in Phase 5) and kube-proxy disabled (Cilium replaces it with eBPF).
   → `controlplane.yaml`/`worker.yaml`/`talosconfig`/`secrets.yaml` (all **gitignored** — secrets).
 - [ ] **Step 3 — Collect each node's maintenance-mode IP** (ESXi console or Orbi attached devices).
 - [ ] **Step 4 — `apply-config`** per node (base config + its per-node patch) → node installs Talos, reboots onto its static IP.
-- [ ] **Step 5 — `talosctl bootstrap`** (etcd, once on cp-01) → fetch kubeconfig → nodes show `NotReady` until Cilium.
+- [x] **Step 5 — Bootstrapped:** set `talosctl` endpoints/node, `talosctl bootstrap` on cp-01 (once). etcd healthy across 3 CPs; VIP `.200` serving the API; `talosctl kubeconfig` fetched. `kubectl get nodes` → all **6 nodes** with correct hostnames, **k8s v1.36.0**, all `NotReady` (no CNI yet — expected). **HA cluster live.**
 
 > **Gotcha (Talos 1.13):** the hostname must be set via a `HostnameConfig` document
 > (`apiVersion: v1alpha1`, `kind: HostnameConfig`, `hostname: <name>`), **not** via
@@ -128,6 +128,23 @@ comes in Phase 5) and kube-proxy disabled (Cilium replaces it with eBPF).
 - `talosctl gen config` → patches (VIP, install disk `/dev/sda`, static IPs, allow
   scheduling? no) → `apply-config` to each node's maintenance IP → `talosctl bootstrap`
   (etcd, once) → fetch kubeconfig → validate nodes (they'll be `NotReady` until Cilium).
+
+---
+
+## Phase 5 — Kubernetes Platform Services  🟡 IN PROGRESS  (2026-05-24)
+
+Cluster is up (k8s **v1.36.0**, 6 nodes `NotReady` — no CNI). Bringing it online and
+layering on platform services.
+
+### Steps
+- [~] **Step 1 — Cilium** (eBPF CNI + kube-proxy replacement). Helm values at
+  `kubernetes/bootstrap/cilium/values.yaml`: Talos capabilities + cgroup paths,
+  KubePrism API endpoint `localhost:7445`, `kubeProxyReplacement=true`, Hubble UI.
+  Installed via Helm into `kube-system`; flips nodes to `Ready`.
+- [ ] **Step 2 — Longhorn** replicated storage (uses workers' `/dev/sdb`).
+- [ ] **Step 3 — Ingress controller + cert-manager** (TLS).
+- [ ] **Step 4 — Cilium LB-IPAM + L2 announcements** (LoadBalancer pool `.230–.250`).
+- [ ] **Step 5 — Namespaces, RBAC, Pod Security Standards.**
 
 ---
 

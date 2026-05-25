@@ -1,0 +1,49 @@
+# Cilium Helm values for Talos Linux + kube-proxy replacement.
+# Install:  helm install cilium cilium/cilium -n kube-system -f this-file
+#
+# References the Talos-specific requirements: explicit Linux capabilities (Talos is
+# locked down), manual cgroup path, and the KubePrism local API endpoint.
+
+ipam:
+  mode: kubernetes            # use the per-node PodCIDRs Talos/k8s allocate (10.244.0.0/16)
+
+kubeProxyReplacement: true    # Cilium's eBPF dataplane replaces kube-proxy (disabled in Talos)
+
+# Talos enables KubePrism (a local API load-balancer) on :7445 by default. Pointing
+# Cilium here avoids the chicken-and-egg of needing the API server before kube-proxy
+# replacement is up.
+k8sServiceHost: localhost
+k8sServicePort: 7445
+
+# Talos runs a minimal, locked-down OS — Cilium must declare the capabilities it needs.
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+
+# Talos mounts cgroup v2 itself; don't let Cilium auto-mount it.
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+
+# Hubble — Cilium's network observability (flow visibility + web UI).
+hubble:
+  relay:
+    enabled: true
+  ui:
+    enabled: true
