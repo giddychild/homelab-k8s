@@ -47,3 +47,14 @@ hubble:
     enabled: true
   ui:
     enabled: true
+
+# Advertise LoadBalancer IPs on the LAN via ARP (L2). With a CiliumLoadBalancerIPPool
+# this lets type=LoadBalancer Services get + announce a real LAN IP (pool .230-.250).
+l2announcements:
+  enabled: true
+
+# L2 announcements add API-server traffic (leader election per service); raise the
+# client rate limits as Cilium recommends, to avoid throttling.
+k8sClientRateLimit:
+  qps: 50
+  burst: 100
