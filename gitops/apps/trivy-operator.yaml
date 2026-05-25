@@ -1,0 +1,39 @@
+# Trivy Operator — continuously scans running images for CVEs and audits configs,
+# publishing results as VulnerabilityReport / ConfigAuditReport resources.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: trivy-operator
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://aquasecurity.github.io/helm-charts
+    chart: trivy-operator
+    targetRevision: 0.32.1
+    helm:
+      valuesObject:
+        operator:
+          # Be gentle on the single HDD — fewer simultaneous scan jobs.
+          scanJobsConcurrentLimit: 3
+        trivy:
+          # Only report CVEs that actually have a fix available (actionable signal).
+          ignoreUnfixed: true
+        # Expose scan metrics to Prometheus (release label so kube-prometheus-stack scrapes it).
+        serviceMonitor:
+          enabled: true
+          labels:
+            release: kube-prometheus-stack
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: trivy-system
+  syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: baseline
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true   # Trivy CRDs are large

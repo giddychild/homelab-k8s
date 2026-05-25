@@ -230,7 +230,7 @@ Production-grade, job-market-relevant tooling (user's explicit goal).
   - **Result:** `grafana-admin` Secret now sourced from Vault (`secret/grafana`), referenced not stored in Git. The production secrets pattern is live.
 - [ ] **Step 2 — Tailscale** secure remote access.
 - [ ] **Step 3 — Cilium network policies** (default-deny + allows).
-- [ ] **Step 4 — Trivy** image/vulnerability scanning.
+- [~] **Step 4 — Trivy Operator** (chart `0.32.1`, app `0.30.1`) → ns `trivy-system`. Continuous image CVE scanning + config audit (`VulnerabilityReport`/`ConfigAuditReport`). `ignoreUnfixed: true`, `scanJobsConcurrentLimit: 3` (HDD-gentle), ServiceMonitor for Prometheus. `gitops/apps/trivy-operator.yaml`.
 - [ ] **Step 5 — Hardening**: audit logging, RBAC least-privilege, trust `homelab-ca`.
 
 ---
