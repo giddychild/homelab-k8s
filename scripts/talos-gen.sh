@@ -25,7 +25,8 @@ talosctl gen config "${CLUSTER_NAME}" "${ENDPOINT}" \
   --with-secrets talos/secrets.yaml \
   --output-dir talos --force \
   --with-docs=false --with-examples=false \
-  --config-patch @talos/patches/all.yaml
+  --config-patch @talos/patches/all.yaml \
+  --config-patch-control-plane @talos/patches/controlplane.yaml
 
 # Strip `auto: stable` from the HostnameConfig doc so per-node hostname patches apply.
 sed -i '/^kind: HostnameConfig$/{n;/^auto: stable$/d;}' talos/controlplane.yaml talos/worker.yaml

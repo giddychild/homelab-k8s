@@ -1,0 +1,65 @@
+# Applied to CONTROL-PLANE nodes only (--config-patch-control-plane at gen time).
+#
+# Defines an explicit, version-controlled kube-apiserver audit policy, replacing
+# Talos's minimal default with security-focused levels. Talos writes events to
+# /var/log/audit/kube/ on each control-plane node (retrieve with `talosctl logs`
+# or via the runbook in docs/runbooks/audit-logging.md).
+#
+# SAFETY: Secrets/ConfigMaps are logged at METADATA only — never Request or
+# RequestResponse — so secret *values* never land in the audit log.
+#
+# Secret-free — safe to commit.
+cluster:
+  apiServer:
+    auditPolicy:
+      apiVersion: audit.k8s.io/v1
+      kind: Policy
+      # The body of a request is large and rarely useful; drop that stage.
+      omitStages:
+        - RequestReceived
+      # Rules are evaluated top-down; the first match wins. Order matters.
+      rules:
+        # 1) Drop high-volume, low-value control-plane chatter.
+        - level: None
+          users:
+            - system:apiserver
+            - system:kube-scheduler
+            - system:kube-controller-manager
+        - level: None
+          userGroups: ["system:nodes"]
+          verbs: ["get", "list", "watch"]
+        - level: None
+          nonResourceURLs:
+            - /healthz*
+            - /readyz*
+            - /livez*
+            - /version
+            - /metrics
+            - /openapi/*
+        - level: None
+          verbs: ["get", "list", "watch"]
+          resources:
+            - group: ""
+              resources: ["events", "endpoints"]
+            - group: coordination.k8s.io
+              resources: ["leases"]
+            - group: discovery.k8s.io
+              resources: ["endpointslices"]
+        # 2) Sensitive material: METADATA only (who/when/what — never the value).
+        - level: Metadata
+          resources:
+            - group: ""
+              resources: ["secrets", "configmaps"]
+            - group: authentication.k8s.io
+              resources: ["tokenreviews"]
+        # 3) RBAC changes: full request + response — highest-signal for security review.
+        - level: RequestResponse
+          verbs: ["create", "update", "patch", "delete"]
+          resources:
+            - group: rbac.authorization.k8s.io
+              resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+        # 4) All other mutating operations: log the request body.
+        - level: Request
+          verbs: ["create", "update", "patch", "delete", "deletecollection"]
+        # 5) Everything else (reads not dropped above): metadata.
+        - level: Metadata
