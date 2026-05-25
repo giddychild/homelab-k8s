@@ -58,6 +58,26 @@ spec:
                   resources:
                     requests:
                       storage: 2Gi
+          # Route firing alerts to the n8n AI incident summarizer.
+          # Watchdog (the always-firing heartbeat) goes to a null receiver so it
+          # doesn't spam Ollama; everything else is summarized by the LLM.
+          config:
+            route:
+              group_by: ["namespace", "alertname"]
+              group_wait: 30s
+              group_interval: 5m
+              repeat_interval: 12h
+              receiver: "n8n"
+              routes:
+                - receiver: "null"
+                  matchers:
+                    - alertname = "Watchdog"
+            receivers:
+              - name: "null"
+              - name: "n8n"
+                webhook_configs:
+                  - url: "http://n8n.ai-ops.svc.cluster.local:5678/webhook/alertmanager"
+                    send_resolved: false
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
