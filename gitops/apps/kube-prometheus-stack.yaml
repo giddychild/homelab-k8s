@@ -18,13 +18,13 @@ spec:
             enabled: true
             ingressClassName: nginx
             annotations:
-              cert-manager.io/cluster-issuer: homelab-ca-issuer
+              cert-manager.io/cluster-issuer: letsencrypt-prod
             hosts:
-              - grafana.192.168.216.230.nip.io
+              - grafana.apps.giddyland.net
             tls:
               - secretName: grafana-tls
                 hosts:
-                  - grafana.192.168.216.230.nip.io
+                  - grafana.apps.giddyland.net
           persistence:
             enabled: true
             storageClassName: longhorn
