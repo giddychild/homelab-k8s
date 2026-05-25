@@ -1,0 +1,22 @@
+# ArgoCD Helm values.
+#
+# The server runs in "insecure" (HTTP) mode and ingress-nginx terminates TLS in
+# front of it — the standard, simplest way to expose ArgoCD behind an ingress.
+# cert-manager issues the cert from our internal CA.
+
+global:
+  domain: argocd.192.168.216.230.nip.io
+
+configs:
+  params:
+    # Serve plain HTTP internally; TLS is handled by the ingress.
+    server.insecure: true
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: homelab-ca-issuer
+    # Creates a TLS section for global.domain using secret argocd-server-tls.
+    tls: true

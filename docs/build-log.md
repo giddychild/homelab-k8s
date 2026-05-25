@@ -152,8 +152,25 @@ layering on platform services.
 
   **Step 4 complete** ✅ — ingress-nginx on `192.168.216.230` + internal CA for automatic TLS.
 
-### Capstone validation
-- [~] Demo app (`kubernetes/examples/hello-ingress-tls.yaml`): PSS-`restricted` nginx (unprivileged image) → Service → Ingress with TLS auto-issued by `homelab-ca-issuer`, hostname via `nip.io` (`hello.192.168.216.230.nip.io`). Proves CNI + ingress + cert-manager + DNS end-to-end.
+- [x] **Step 5 — Governance** (handled inline): Pod Security applied per namespace (`privileged` for longhorn-system/ingress-nginx, `restricted` for demo); namespaces created per-need; RBAC stays at secure k8s defaults and will be extended declaratively via GitOps.
+
+### Capstone validation ✅
+- [x] Demo app (`kubernetes/examples/hello-ingress-tls.yaml`): PSS-`restricted` nginx (unprivileged image) → Service → Ingress with TLS auto-issued by `homelab-ca-issuer`, hostname via `nip.io`. **Verified:** HTTPS page loads, validates against `homelab-ca.crt` (no `-k`), `issuer: CN=homelab-ca`. CNI + ingress + cert-manager + DNS proven end-to-end.
+
+**PHASE 5 COMPLETE** ✅ — full platform services layer up.
+
+---
+
+## Phase 6 — GitOps (ArgoCD)  🟡 IN PROGRESS  (2026-05-25)
+
+ArgoCD watches the repo's `gitops/` tree and reconciles the cluster to match it
+(app-of-apps pattern). Bootstrap components (Cilium, Longhorn, ingress, cert-manager)
+stay Helm-installed; ArgoCD manages everything layered on top.
+
+### Steps
+- [~] **Step 1 — Install ArgoCD** via Helm into `argocd`, server in `insecure` mode behind ingress, exposed at `argocd.192.168.216.230.nip.io` with CA-issued TLS. Values: `kubernetes/bootstrap/argocd/values.yaml`.
+- [ ] **Step 2 — app-of-apps** root Application pointing at `gitops/`.
+- [ ] **Step 3 — Migrate/define apps** (monitoring, etc.) as ArgoCD Applications.
 - [ ] **Step 5 — Namespaces, RBAC, Pod Security Standards.**
 
 ---
