@@ -59,4 +59,4 @@ the repo *is* the system.
 - **Everything as code:** the entire platform lives in a public GitHub repo with a detailed, step-by-step build log — reproducible from scratch.
 
 ## Current status
-**Phases 1–9 complete** (planning → HA cluster → platform services → GitOps → observability → AI ops → security). **Phase 10 (production readiness) in progress** — Velero backups to AWS S3 are live; Talos etcd snapshots, restore drills, upgrade runbooks, and chaos testing remain.
+**All 10 phases complete** (planning → HA cluster → platform services → GitOps → observability → AI ops → security → production readiness). The platform is fully GitOps-managed with tested disaster recovery: Velero (volumes + resources) and Talos etcd snapshots both back up to AWS S3, a restore drill recovered volume data byte-for-byte, upgrade runbooks are written, and a control-plane chaos test confirmed HA (etcd quorum + VIP failover held). Day-2 operations and ongoing enhancements continue from here.

@@ -239,7 +239,7 @@ Production-grade, job-market-relevant tooling (user's explicit goal).
 
 ---
 
-## Phase 10 — Production readiness  🟡 IN PROGRESS  (2026-05-25)
+## Phase 10 — Production readiness  ✅ COMPLETE  (2026-05-25)
 
 DR layers: (1) cluster config/apps already recoverable from **Git + ArgoCD**; (2) volume + resource backups via **Velero → S3**; (3) cluster state via **Talos etcd snapshots**; then restore drills, upgrade runbooks, chaos testing.
 
@@ -252,7 +252,7 @@ DR layers: (1) cluster config/apps already recoverable from **Git + ArgoCD**; (2
 - [x] **Step 3 — Restore drill** ✅ **DR proven end-to-end**. Created throwaway ns `restore-drill` with a Longhorn PVC + sentinel file, Velero FSB backup → S3, **deleted the whole namespace**, then `velero restore` → ns/PVC/pod recreated and `/data/sentinel.txt` came back **byte-identical** (FSB restore via the `restore-wait` init container). Used a non-GitOps ns so ArgoCD self-heal couldn't mask the result. Procedure: `docs/runbooks/disaster-recovery.md`.
   - **Bucket-sharing gotcha:** Velero validates that only its own dirs exist at the BSL root, so the etcd CronJob's `etcd-snapshots/` top-level dir flipped the BSL to `Unavailable`. Fix: give Velero a `prefix: velero` so it owns only `velero/` and the two tools share the bucket.
 - [x] **Step 4 — Upgrade runbooks** ✅ (`docs/runbooks/talos-kubernetes-upgrades.md`). Cluster-specific Talos OS + Kubernetes upgrade procedure: pre-flight (health + backups, one-minor-at-a-time), rolling `talosctl upgrade` per node (CP = vanilla installer, **workers = schematic installer** `factory.talos.dev/installer/<id>:<ver>` to preserve iscsi-tools/Longhorn — the key gotcha), `talosctl upgrade-k8s --to`, verify + rollback. NOTE: cluster is already on the latest (Talos v1.13.2 / k8s v1.36.0 as of 2026-05) so no live upgrade to run yet; runbook is for the next release.
-- [ ] **Step 5 — Chaos test** (node failure + recovery).
+- [x] **Step 5 — Chaos test** ✅ **HA proven**. Rebooted control-plane node `talos-cp-03` (`talosctl reboot`): etcd held quorum at **2/3**, the API VIP stayed served (kubectl uninterrupted, `/readyz: ok` throughout), node rebooted and rejoined (`kube-apiserver-talos-cp-03` back `1/1`), all 6 nodes `Ready` — no manual intervention. **Finding:** `cilium-operator` (runs on CP nodes) leaves `ContainerStatusUnknown` pod records on every CP reboot; today's many reboots accumulated ~120 stale Failed pods (deployment stayed healthy `2/2`). Cleaned via `kubectl delete pod -l io.cilium/app=operator --field-selector=status.phase!=Running`. Cosmetic (k8s terminated-pod GC threshold is ~12500) but worth a periodic sweep.
 
 ---
 
