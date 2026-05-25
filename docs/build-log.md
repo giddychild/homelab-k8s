@@ -268,6 +268,14 @@ Replaced per-device internal-CA trust with publicly-trusted certs **without expo
 
 ---
 
+## Day-2 — Discord alerting + incident notes  (2026-05-25)
+
+- **Discord notifications:** `warning|critical` Alertmanager alerts → a Discord channel, reliably (no AI/n8n dependency). Webhook URL in Vault `secret/alert-webhook` → ESO Secret `alertmanager-discord` (monitoring ns); referenced by an **`AlertmanagerConfig` CRD** (`gitops/workloads/alerting/`, App `gitops/apps/alerting.yaml`) via `discordConfigs.apiURL` (SecretKeySelector) so it never lands in the public repo. Alertmanager selects it via `alertmanagerConfigSelector` (label `alertmanagerConfig: discord`) + `alertmanagerConfigMatcherStrategy.type: None` (matches cluster-wide). Verified with a synthetic alert. Critical alerts also → n8n (AI summary; the inline n8n route is `continue: true`).
+  - **GOTCHA:** the prometheus-operator's *inline* `discord_configs` has **no `webhook_url_file`** field — it rejects the whole config (`field webhook_url_file not found in type alertmanager.discordConfig`) and gets stuck. Don't put the literal URL inline (public repo). Use the **AlertmanagerConfig CRD `apiURL` secret-ref** instead (v1alpha1 supports `discordConfigs`).
+- **Incident — Grafana `Degraded` / `Sync failed` (resolved):** a chart re-render rolled the Grafana Deployment; its **ReadWriteOnce** PVC caused a `Multi-Attach` deadlock (RollingUpdate starts the new pod before the old releases the volume) → "exceeded progress deadline". Fix: `grafana.deploymentStrategy.type: Recreate`. Classic detect→diagnose→resolve; this class of failure now also pings Discord.
+
+---
+
 ## Appendix A — Commands run (chronological)
 
 ```powershell
