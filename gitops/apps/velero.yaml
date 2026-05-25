@@ -22,6 +22,13 @@ spec:
     targetRevision: 11.4.0
     helm:
       valuesObject:
+        # The chart's CRD-install hook defaults to docker.io/bitnamilegacy/kubectl,
+        # whose :1.36 tag doesn't exist (Bitnami sunset their free images). Point it
+        # at the official kubectl image matching the cluster version instead.
+        kubectl:
+          image:
+            repository: registry.k8s.io/kubectl
+            tag: v1.36.0
         # AWS provider plugin (S3-compatible → R2).
         initContainers:
           - name: velero-plugin-for-aws
