@@ -1,0 +1,27 @@
+# Cilium LoadBalancer IPAM + L2 announcements.
+# - The pool hands type=LoadBalancer Services an IP from 192.168.216.230-250
+#   (above the Orbi DHCP ceiling of .199, so no conflicts).
+# - The L2 policy answers ARP for those IPs from the worker nodes, so the rest of
+#   the LAN can reach them (acts like a built-in MetalLB).
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: homelab-pool
+spec:
+  blocks:
+    - start: 192.168.216.230
+      stop: 192.168.216.250
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: homelab-l2
+spec:
+  # Announce LoadBalancer Service IPs (not arbitrary externalIPs).
+  loadBalancerIPs: true
+  # Announce from worker nodes only (control planes are tainted / kept lean).
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: DoesNotExist
