@@ -29,7 +29,14 @@ spec:
             enabled: true
             storageClassName: longhorn
             size: 5Gi
-          # NOTE: default login is admin / prom-operator — rotate this in Phase 9.
+          # Admin creds come from a hand-created secret (kept OUT of this public repo).
+          # Create it once with:
+          #   kubectl -n monitoring create secret generic grafana-admin \
+          #     --from-literal=admin-user=admin --from-literal=admin-password=<your-pw>
+          admin:
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
         prometheus:
           prometheusSpec:
             retention: 15d
