@@ -117,6 +117,14 @@ comes in Phase 5) and kube-proxy disabled (Cilium replaces it with eBPF).
 > hostname in a separate `HostnameConfig` doc. Also: regenerate with `--with-secrets`
 > (keep cluster identity) and `--force` (overwrite); `--with-examples=false` does NOT
 > remove `HostnameConfig` (it's a core doc, not an example).
+>
+> **Full resolution:** merging a hostname into the base `HostnameConfig` leaves
+> `auto: stable` set too → *"'auto' and 'hostname' cannot be set at the same time"*.
+> And patches can't strip `auto`: config patches are decoded as typed docs, so the
+> strategic-merge directive `$patch: replace` is rejected (*"unknown keys: $patch"*).
+> Fix → **`scripts/talos-gen.sh`**: regenerates configs and `sed`-removes the
+> `auto: stable` line, so the per-node `HostnameConfig` patch (plain `hostname:`) merges
+> cleanly. Regenerate via that script from now on (not raw `talosctl gen config`).
 - `talosctl gen config` → patches (VIP, install disk `/dev/sda`, static IPs, allow
   scheduling? no) → `apply-config` to each node's maintenance IP → `talosctl bootstrap`
   (etcd, once) → fetch kubeconfig → validate nodes (they'll be `NotReady` until Cilium).

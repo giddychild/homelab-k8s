@@ -15,5 +15,4 @@ machine:
 ---
 apiVersion: v1alpha1
 kind: HostnameConfig
-$patch: replace
 hostname: talos-cp-02

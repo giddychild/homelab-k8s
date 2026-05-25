@@ -1,5 +1,6 @@
-# Per-node patch — control-plane: static IP + shared VIP (v1alpha1),
-# hostname via HostnameConfig. `$patch: replace` drops the base doc's `auto: stable`
+# Per-node patch — control-plane: static IP + shared VIP (v1alpha1).
+# Hostname via the HostnameConfig document. NOTE: the base HostnameConfig's
+# `auto: stable` is stripped by scripts/talos-gen.sh so this merges cleanly
 # (Talos forbids setting both `auto` and `hostname`).
 machine:
   network:
@@ -17,5 +18,4 @@ machine:
 ---
 apiVersion: v1alpha1
 kind: HostnameConfig
-$patch: replace
 hostname: talos-cp-01
