@@ -38,11 +38,11 @@ spec:
             - containerPort: 5678
           env:
             - name: N8N_HOST
-              value: n8n.192.168.216.230.nip.io
+              value: n8n.apps.giddyland.net
             - name: N8N_PROTOCOL
               value: https
             - name: WEBHOOK_URL
-              value: https://n8n.192.168.216.230.nip.io/
+              value: https://n8n.apps.giddyland.net/
             - name: N8N_PORT
               value: "5678"
             - name: N8N_SECURE_COOKIE
@@ -82,14 +82,14 @@ metadata:
   name: n8n
   namespace: ai-ops
   annotations:
-    cert-manager.io/cluster-issuer: homelab-ca-issuer
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [n8n.192.168.216.230.nip.io]
+    - hosts: [n8n.apps.giddyland.net]
       secretName: n8n-tls
   rules:
-    - host: n8n.192.168.216.230.nip.io
+    - host: n8n.apps.giddyland.net
       http:
         paths:
           - path: /

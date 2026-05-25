@@ -5,7 +5,7 @@
 # cert-manager issues the cert from our internal CA.
 
 global:
-  domain: argocd.192.168.216.230.nip.io
+  domain: argocd.apps.giddyland.net
 
 configs:
   params:
@@ -17,6 +17,6 @@ server:
     enabled: true
     ingressClassName: nginx
     annotations:
-      cert-manager.io/cluster-issuer: homelab-ca-issuer
+      cert-manager.io/cluster-issuer: letsencrypt-prod
     # Creates a TLS section for global.domain using secret argocd-server-tls.
     tls: true

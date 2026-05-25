@@ -55,15 +55,15 @@ metadata:
   name: hello
   namespace: demo
   annotations:
-    cert-manager.io/cluster-issuer: homelab-ca-issuer
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - hello.192.168.216.230.nip.io
+        - hello.apps.giddyland.net
       secretName: hello-tls
   rules:
-    - host: hello.192.168.216.230.nip.io
+    - host: hello.apps.giddyland.net
       http:
         paths:
           - path: /

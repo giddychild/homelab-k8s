@@ -26,13 +26,13 @@ spec:
             enabled: true
             ingressClassName: nginx
             annotations:
-              cert-manager.io/cluster-issuer: homelab-ca-issuer
+              cert-manager.io/cluster-issuer: letsencrypt-prod
             hosts:
-              - host: vault.192.168.216.230.nip.io
+              - host: vault.apps.giddyland.net
             tls:
               - secretName: vault-tls
                 hosts:
-                  - vault.192.168.216.230.nip.io
+                  - vault.apps.giddyland.net
         ui:
           enabled: true
         injector:

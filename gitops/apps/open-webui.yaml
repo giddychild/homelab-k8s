@@ -23,10 +23,10 @@ spec:
         ingress:
           enabled: true
           class: nginx
-          host: chat.192.168.216.230.nip.io
+          host: chat.apps.giddyland.net
           tls: true
           annotations:
-            cert-manager.io/cluster-issuer: homelab-ca-issuer
+            cert-manager.io/cluster-issuer: letsencrypt-prod
   destination:
     server: https://kubernetes.default.svc
     namespace: ai-ops
