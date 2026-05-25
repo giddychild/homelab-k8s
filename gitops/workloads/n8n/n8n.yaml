@@ -1,0 +1,101 @@
+# n8n — workflow automation (the engine for the AI ops agents). SQLite on a Longhorn PVC.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-data
+  namespace: ai-ops
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+  namespace: ai-ops
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate        # single RWO volume — don't run two pods at once
+  selector:
+    matchLabels:
+      app: n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+    spec:
+      securityContext:
+        fsGroup: 1000       # n8n runs as uid/gid 1000 (node); make the volume writable
+      containers:
+        - name: n8n
+          image: n8nio/n8n:latest   # TODO: pin to the running version after first deploy
+          ports:
+            - containerPort: 5678
+          env:
+            - name: N8N_HOST
+              value: n8n.192.168.216.230.nip.io
+            - name: N8N_PROTOCOL
+              value: https
+            - name: WEBHOOK_URL
+              value: https://n8n.192.168.216.230.nip.io/
+            - name: N8N_PORT
+              value: "5678"
+            - name: N8N_SECURE_COOKIE
+              value: "false"   # TLS terminates at the ingress; avoids a cookie edge case
+            - name: GENERIC_TIMEZONE
+              value: America/Chicago
+          volumeMounts:
+            - name: data
+              mountPath: /home/node/.n8n
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: n8n-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n
+  namespace: ai-ops
+spec:
+  selector:
+    app: n8n
+  ports:
+    - port: 5678
+      targetPort: 5678
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: n8n
+  namespace: ai-ops
+  annotations:
+    cert-manager.io/cluster-issuer: homelab-ca-issuer
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [n8n.192.168.216.230.nip.io]
+      secretName: n8n-tls
+  rules:
+    - host: n8n.192.168.216.230.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n
+                port:
+                  number: 5678

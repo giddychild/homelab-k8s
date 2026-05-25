@@ -200,9 +200,9 @@ Local AI platform, deployed via GitOps into namespace `ai-ops` (PSS `baseline`).
 Proceeding on 100 Mbps — deploy the stack now, pull only small models until gigabit.
 
 ### Steps
-- [~] **Step 1 — Ollama** (chart `1.57.0`, app `0.24.0`): CPU inference, models on Longhorn (30Gi). `gitops/apps/ollama.yaml`.
-- [~] **Step 2 — Open WebUI** (chart `14.6.0`): chat UI at `chat.192.168.216.230.nip.io` + CA TLS, pointed at Ollama, 5Gi Longhorn. `gitops/apps/open-webui.yaml`.
-- [ ] **Step 3 — n8n** (workflow automation) via manifests, ingress + TLS.
+- [x] **Step 1 — Ollama deployed** (chart `1.57.0`, app `0.24.0`): pod Running, CPU inference, models on Longhorn (30Gi). Validate: `kubectl -n ai-ops exec deploy/ollama -- ollama pull llama3.2:1b`. `gitops/apps/ollama.yaml`.
+- [x] **Step 2 — Open WebUI deployed** (chart `14.6.0`): pods Running (+ pipelines, redis). Chat at `chat.192.168.216.230.nip.io` + CA TLS, pointed at Ollama. `gitops/apps/open-webui.yaml`.
+- [~] **Step 3 — n8n** via manifests (`gitops/workloads/n8n/`, App `gitops/apps/n8n.yaml`): SQLite on Longhorn 5Gi, ingress `n8n.192.168.216.230.nip.io` + CA TLS, `N8N_SECURE_COOKIE=false`. Image `:latest` (pin after first deploy).
 - [ ] **Step 4 — AI ops agents**: n8n workflows using Prometheus/Loki/k8s + Ollama (incident summary, troubleshooting, remediation).
 
 ---
