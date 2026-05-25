@@ -1,0 +1,73 @@
+# Velero — cluster backup/restore + disaster recovery, to Cloudflare R2 (S3).
+#
+# Backups: File System Backup (kopia) via the node-agent, so PV *contents*
+# (Vault, n8n, Grafana, Loki, …) are captured regardless of storage driver,
+# plus the Kubernetes resources themselves. Target = R2 bucket homelab-k8s-backups.
+#
+# Creds: AWS-style credentials file in Secret `velero-credentials`, templated by
+# ESO from Vault `secret/velero` (see gitops/workloads/eso-config/) — none in Git.
+#
+# Version pin: chart 11.4.0 = Velero 1.17.1, matched with plugin v1.13.0 (the
+# combo the AWS-plugin compatibility matrix confirms).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: velero
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://vmware-tanzu.github.io/helm-charts
+    chart: velero
+    targetRevision: 11.4.0
+    helm:
+      valuesObject:
+        # AWS provider plugin (S3-compatible → R2).
+        initContainers:
+          - name: velero-plugin-for-aws
+            image: velero/velero-plugin-for-aws:v1.13.0
+            imagePullPolicy: IfNotPresent
+            volumeMounts:
+              - mountPath: /target
+                name: plugins
+        credentials:
+          useSecret: true
+          existingSecret: velero-credentials   # ESO-managed (key: cloud)
+        configuration:
+          backupStorageLocation:
+            - name: default
+              provider: aws
+              bucket: homelab-k8s-backups
+              default: true
+              config:
+                region: auto                    # R2 uses "auto"
+                s3Url: https://cc034994f032b047ae910ab0ec21a075.r2.cloudflarestorage.com
+                s3ForcePathStyle: "true"
+                checksumAlgorithm: ""           # REQUIRED for R2 (disables CRC checksums)
+        # We use File System Backup, not volume snapshots → no snapshot location.
+        snapshotsEnabled: false
+        deployNodeAgent: true                   # node-agent daemonset for kopia FSB
+        # Daily backup of everything, FS-backed, kept 7 days.
+        schedules:
+          daily:
+            disabled: false
+            schedule: "0 3 * * *"
+            template:
+              ttl: 168h
+              defaultVolumesToFsBackup: true
+              includedNamespaces:
+                - "*"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: velero
+  syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        # node-agent mounts hostPath /var/lib/kubelet/pods and runs privileged.
+        pod-security.kubernetes.io/enforce: privileged
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true                    # Velero CRDs are large
