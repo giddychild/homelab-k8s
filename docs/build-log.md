@@ -137,10 +137,7 @@ Cluster is up (k8s **v1.36.0**, 6 nodes `NotReady` — no CNI). Bringing it onli
 layering on platform services.
 
 ### Steps
-- [~] **Step 1 — Cilium** (eBPF CNI + kube-proxy replacement). Helm values at
-  `kubernetes/bootstrap/cilium/values.yaml`: Talos capabilities + cgroup paths,
-  KubePrism API endpoint `localhost:7445`, `kubeProxyReplacement=true`, Hubble UI.
-  Installed via Helm into `kube-system`; flips nodes to `Ready`.
+- [x] **Step 1 — Cilium installed** ✅ — Helm into `kube-system` with `kubernetes/bootstrap/cilium/values.yaml`. DaemonSet rolled out 6/6 (one cilium pod per node) + operator + Hubble relay/UI. **All 6 nodes `Ready`** — cluster fully functional.
 - [ ] **Step 2 — Longhorn** replicated storage (uses workers' `/dev/sdb`).
 - [ ] **Step 3 — Ingress controller + cert-manager** (TLS).
 - [ ] **Step 4 — Cilium LB-IPAM + L2 announcements** (LoadBalancer pool `.230–.250`).
