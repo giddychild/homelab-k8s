@@ -194,6 +194,19 @@ Deployed via GitOps — ArgoCD `Application`s committed under `gitops/apps/`.
 
 ---
 
+## Phase 8 — AI Ops  🟡 IN PROGRESS  (2026-05-25)
+
+Local AI platform, deployed via GitOps into namespace `ai-ops` (PSS `baseline`).
+Proceeding on 100 Mbps — deploy the stack now, pull only small models until gigabit.
+
+### Steps
+- [~] **Step 1 — Ollama** (chart `1.57.0`, app `0.24.0`): CPU inference, models on Longhorn (30Gi). `gitops/apps/ollama.yaml`.
+- [~] **Step 2 — Open WebUI** (chart `14.6.0`): chat UI at `chat.192.168.216.230.nip.io` + CA TLS, pointed at Ollama, 5Gi Longhorn. `gitops/apps/open-webui.yaml`.
+- [ ] **Step 3 — n8n** (workflow automation) via manifests, ingress + TLS.
+- [ ] **Step 4 — AI ops agents**: n8n workflows using Prometheus/Loki/k8s + Ollama (incident summary, troubleshooting, remediation).
+
+---
+
 ## Appendix A — Commands run (chronological)
 
 ```powershell

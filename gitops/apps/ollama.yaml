@@ -1,0 +1,40 @@
+# Ollama — local LLM runtime (CPU inference; no GPU). Models persist on Longhorn.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ollama
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://helm.otwld.com/
+    chart: ollama
+    targetRevision: 1.57.0
+    helm:
+      valuesObject:
+        ollama:
+          gpu:
+            enabled: false        # CPU inference on the Xeons
+        persistentVolume:
+          enabled: true
+          storageClass: longhorn
+          size: 30Gi              # room for several small/medium models
+        resources:
+          requests:
+            cpu: "2"
+            memory: 4Gi
+          limits:
+            cpu: "8"
+            memory: 16Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ai-ops
+  syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: baseline
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

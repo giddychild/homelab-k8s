@@ -1,0 +1,41 @@
+# Open WebUI — ChatGPT-style UI wired to our Ollama. Ingress + CA TLS.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: open-webui
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://helm.openwebui.com/
+    chart: open-webui
+    targetRevision: 14.6.0
+    helm:
+      valuesObject:
+        ollama:
+          enabled: false          # use our standalone Ollama, not a bundled one
+        ollamaUrls:
+          - http://ollama.ai-ops.svc.cluster.local:11434
+        persistence:
+          enabled: true
+          storageClass: longhorn
+          size: 5Gi
+        ingress:
+          enabled: true
+          class: nginx
+          host: chat.192.168.216.230.nip.io
+          tls: true
+          annotations:
+            cert-manager.io/cluster-issuer: homelab-ca-issuer
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ai-ops
+  syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: baseline
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
