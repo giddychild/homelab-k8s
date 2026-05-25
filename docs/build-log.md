@@ -145,8 +145,10 @@ layering on platform services.
   - [x] **2c** — Longhorn deployed via Helm into `longhorn-system` (PSS `privileged`). All pods Running (manager/CSI/instance-manager on the 3 workers), `longhorn` is the **default StorageClass**, 3 worker storage nodes schedulable. Manifests in `kubernetes/bootstrap/longhorn/`.
 
   **Step 2 (Longhorn) complete** ✅ — replicated block storage on the workers' dedicated disks.
-- [~] **Step 3 — Cilium LB-IPAM + L2 announcements** (LoadBalancer pool `.230–.250`) — prereq for ingress to get a LAN IP. `helm upgrade` Cilium with `l2announcements.enabled` + raised `k8sClientRateLimit`; then `CiliumLoadBalancerIPPool` + `CiliumL2AnnouncementPolicy`.
-- [ ] **Step 4 — Ingress controller (ingress-nginx) + cert-manager** (TLS).
+- [x] **Step 3 — Cilium LB-IPAM + L2** ✅ — Cilium upgraded with `l2announcements.enabled` (+ raised `k8sClientRateLimit`); `CiliumLoadBalancerIPPool homelab-pool` (`.230–.250`, 21 IPs) + `CiliumL2AnnouncementPolicy homelab-l2` (workers). Verified: test `LoadBalancer` Service got `192.168.216.230` and returned `HTTP 200` over the LAN. CRD versions: pool `cilium.io/v2`, policy `cilium.io/v2alpha1`.
+- [~] **Step 4 — Ingress (ingress-nginx) + cert-manager**:
+  - [~] 4a — `ingress-nginx` via Helm into `ingress-nginx` ns, controller Service pinned to `192.168.216.230` (annotation `io.cilium/lb-ipam-ips`). Manifests `kubernetes/bootstrap/ingress-nginx/`.
+  - [ ] 4b — cert-manager + a ClusterIssuer (self-signed/CA to start; ACME DNS-01 later).
 - [ ] **Step 5 — Namespaces, RBAC, Pod Security Standards.**
 
 ---

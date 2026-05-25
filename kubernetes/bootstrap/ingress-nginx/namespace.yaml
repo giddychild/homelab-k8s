@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-nginx
+  labels:
+    # ingress-nginx controller needs NET_BIND_SERVICE etc.; privileged for now,
+    # tighten toward 'baseline' during the Phase 9 security hardening pass.
+    pod-security.kubernetes.io/enforce: privileged
