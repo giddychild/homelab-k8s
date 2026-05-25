@@ -20,3 +20,37 @@ server:
       cert-manager.io/cluster-issuer: letsencrypt-prod
     # Creates a TLS section for global.domain using secret argocd-server-tls.
     tls: true
+
+# ArgoCD Notifications → Discord on sync/health failures. The webhook URL is
+# resolved as $discord-url from argocd-notifications-secret, which ESO populates
+# from Vault (secret.create=false so ESO owns it; URL never in Git).
+notifications:
+  enabled: true
+  secret:
+    create: false
+  notifiers:
+    service.webhook.discord: |
+      url: $discord-url
+      headers:
+        - name: Content-Type
+          value: application/json
+  templates:
+    template.app-problem: |
+      webhook:
+        discord:
+          method: POST
+          body: |
+            {"content": "🔴 ArgoCD **{{.app.metadata.name}}** — sync `{{.app.status.sync.status}}`, health `{{.app.status.health.status}}`\n{{if .app.status.operationState}}{{.app.status.operationState.message}}{{end}}"}
+  triggers:
+    trigger.on-problem: |
+      - when: app.status.operationState.phase in ['Error', 'Failed']
+        oncePer: app.status.operationState.syncResult.revision
+        send: [app-problem]
+      - when: app.status.health.status == 'Degraded'
+        oncePer: app.status.sync.revision
+        send: [app-problem]
+  subscriptions:
+    - recipients:
+        - discord
+      triggers:
+        - on-problem
