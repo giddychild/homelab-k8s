@@ -1,0 +1,38 @@
+# Tailscale Kubernetes Operator — zero-trust remote access over the tailnet.
+#
+# OAuth creds are NOT in this manifest: with oauth.* unset, the operator reads a
+# pre-created `operator-oauth` Secret (keys client_id/client_secret), which ESO
+# syncs from Vault `secret/tailscale` (see gitops/workloads/eso-config/).
+#
+# apiServerProxyConfig.mode="true" runs the in-process API-server proxy, so the
+# cluster API is reachable over the tailnet (authenticated) — kubectl from
+# anywhere with nothing exposed to the internet.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tailscale-operator
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://pkgs.tailscale.com/helmcharts
+    chart: tailscale-operator
+    targetRevision: 1.98.3
+    helm:
+      valuesObject:
+        apiServerProxyConfig:
+          mode: "true"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tailscale
+  syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        # Tailscale proxy pods (created when exposing services later) need
+        # NET_ADMIN + root, so the namespace runs at `privileged` PSS.
+        pod-security.kubernetes.io/enforce: privileged
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
