@@ -1,0 +1,9 @@
+# Promtail — DaemonSet that tails every pod's logs and ships them to Loki.
+config:
+  clients:
+    - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
+
+# Run on ALL nodes (including the tainted control planes) so we capture their logs too.
+tolerations:
+  - effect: NoSchedule
+    operator: Exists
