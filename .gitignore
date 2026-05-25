@@ -5,6 +5,8 @@
 # Talos cluster credentials & kube access
 talos/talosconfig
 talos/secrets.yaml
+talos/controlplane.yaml
+talos/worker.yaml
 **/kubeconfig
 **/*.kubeconfig
 # age private keys (decrypt SOPS secrets)

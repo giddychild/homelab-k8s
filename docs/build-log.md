@@ -93,15 +93,22 @@ Layout: `terraform/environments/prod/` is the root config; a reusable
 
 ---
 
-## Phase 4 — Talos Kubernetes Deployment  ⏸ NOT STARTED
+## Phase 4 — Talos Kubernetes Deployment  🟡 IN PROGRESS  (2026-05-24)
 
-Best done **after** the gigabit switch is installed (faster image pulls) and the
-Orbi DHCP pool is narrowed (so static node IPs are free).
+Proceeding on the 100 Mbps link (image pulls just slower). Control-plane **VIP
+`192.168.216.200`**; static IPs cp `.201–.203`, wk `.211–.213`. CNI disabled (Cilium
+comes in Phase 5) and kube-proxy disabled (Cilium replaces it with eBPF).
 
-Plan:
-- Cap Orbi DHCP at `.199` (change END `.254 → .199`) so the `.200+` static block is free.
-- Cluster K8s version is set by Talos `v1.13.2`; align `kubectl` to it.
-- Control-plane **VIP `192.168.216.200`**; static IPs cp `.201–.203`, wk `.211–.213`; LB pool `.230–.250`.
+### Steps
+- [x] **Step 1 — Capped Orbi DHCP at `.199`** so the `.200+` static block is free.
+- [~] **Step 2 — Configs:** secret-free patches committed to `talos/patches/` —
+  `all.yaml` (install disk `/dev/sda`, CNI none, proxy off, pod/service CIDRs, DNS) and
+  `nodes/talos-*.yaml` (static IP + hostname; control planes also carry VIP `.200`).
+  Generate with `talosctl gen secrets` + `talosctl gen config homelab-prod https://192.168.216.200:6443`
+  → `controlplane.yaml`/`worker.yaml`/`talosconfig`/`secrets.yaml` (all **gitignored** — secrets).
+- [ ] **Step 3 — Collect each node's maintenance-mode IP** (ESXi console or Orbi attached devices).
+- [ ] **Step 4 — `apply-config`** per node (base config + its per-node patch) → node installs Talos, reboots onto its static IP.
+- [ ] **Step 5 — `talosctl bootstrap`** (etcd, once on cp-01) → fetch kubeconfig → nodes show `NotReady` until Cilium.
 - `talosctl gen config` → patches (VIP, install disk `/dev/sda`, static IPs, allow
   scheduling? no) → `apply-config` to each node's maintenance IP → `talosctl bootstrap`
   (etcd, once) → fetch kubeconfig → validate nodes (they'll be `NotReady` until Cilium).

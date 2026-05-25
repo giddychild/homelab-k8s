@@ -1,0 +1,24 @@
+# Applied to ALL nodes at `talosctl gen config` time (--config-patch).
+# Secret-free — safe to commit.
+machine:
+  install:
+    # First SCSI disk = the 60 GB OS disk (workers' 100 GB Longhorn disk is /dev/sdb).
+    # Verify on a node before applying:  talosctl get disks --insecure -n <maintenance-ip>
+    disk: /dev/sda
+  network:
+    # Static interfaces have no DHCP-provided DNS, so set resolvers explicitly.
+    nameservers:
+      - 192.168.216.1
+      - 1.1.1.1
+cluster:
+  network:
+    podSubnets:
+      - 10.244.0.0/16
+    serviceSubnets:
+      - 10.96.0.0/12
+    # We install Cilium ourselves in Phase 5, so disable Talos's default CNI...
+    cni:
+      name: none
+  # ...and disable kube-proxy — Cilium replaces it with its eBPF implementation.
+  proxy:
+    disabled: true

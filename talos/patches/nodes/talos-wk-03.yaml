@@ -1,0 +1,13 @@
+# Per-node patch — worker, static IP (no VIP on workers).
+machine:
+  network:
+    hostname: talos-wk-03
+    interfaces:
+      - deviceSelector:
+          driver: vmxnet3
+        dhcp: false
+        addresses:
+          - 192.168.216.213/24
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.216.1
