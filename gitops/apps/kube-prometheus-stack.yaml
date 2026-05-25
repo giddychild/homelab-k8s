@@ -55,6 +55,10 @@ spec:
                       storage: 20Gi
         alertmanager:
           alertmanagerSpec:
+            # Mounts the ESO-synced Discord webhook at
+            # /etc/alertmanager/secrets/alertmanager-discord/discord_url
+            secrets:
+              - alertmanager-discord
             storage:
               volumeClaimTemplate:
                 spec:
@@ -74,11 +78,21 @@ spec:
               repeat_interval: 12h
               receiver: "null"
               routes:
+                # All warning/critical alerts → Discord (reliable, no AI dependency).
+                - receiver: "discord"
+                  matchers:
+                    - severity =~ "warning|critical"
+                  continue: true
+                # Critical also → n8n for the AI summary (existing).
                 - receiver: "n8n"
                   matchers:
                     - severity = "critical"
             receivers:
               - name: "null"
+              - name: "discord"
+                discord_configs:
+                  - webhook_url_file: /etc/alertmanager/secrets/alertmanager-discord/discord_url
+                    send_resolved: true
               - name: "n8n"
                 webhook_configs:
                   - url: "http://n8n.ai-ops.svc.cluster.local:5678/webhook/alertmanager"
