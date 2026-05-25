@@ -216,7 +216,7 @@ Proceeding on 100 Mbps — deploy the stack now, pull only small models until gi
 
 ---
 
-## Phase 9 — Security  🟡 IN PROGRESS  (2026-05-25)
+## Phase 9 — Security  ✅ COMPLETE  (2026-05-25)
 
 Production-grade, job-market-relevant tooling (user's explicit goal).
 
@@ -228,7 +228,7 @@ Production-grade, job-market-relevant tooling (user's explicit goal).
   - Vault config: KV v2 at `secret`, Kubernetes auth method, `eso` policy (read `secret/data/*`) + role bound to SA `external-secrets/external-secrets`.
   - ESO chart `2.5.0` (API `external-secrets.io/v1`). `ClusterSecretStore vault-backend` → **Valid**; `ExternalSecret grafana-admin` (`gitops/workloads/eso-config/`) → **SecretSynced**.
   - **Result:** `grafana-admin` Secret now sourced from Vault (`secret/grafana`), referenced not stored in Git. The production secrets pattern is live.
-- [ ] **Step 2 — Tailscale** secure remote access.
+- [x] **Step 2 — Tailscale operator** ✅ secure remote access. Operator Helm chart `1.98.3` via `gitops/apps/tailscale-operator.yaml` (API-server proxy on, `apiServerProxyConfig.mode=true`), ns `tailscale` PSS `privileged`. OAuth client creds (Vault `secret/tailscale`) synced to the `operator-oauth` Secret by ESO (`gitops/workloads/eso-config/tailscale-operator-externalsecret.yaml`) — none in Git. **Verified:** operator registered on the tailnet as `tailscale-operator` (`100.110.187.6`, `tag:k8s-operator`), laptop `sobadina` also connected. Consuming the API proxy (ACL grant + kubeconfig) is the follow-up.
 - [x] **Step 3 — Network policies** ✅ (Cilium-enforced): `demo` ns default-deny + DNS-egress + ingress-from-ingress-nginx. **Verified:** ingress path → HTTP 200, pod egress → BLOCKED. Used Hubble to observe real flows (the production way to author policies before locking a namespace down). `gitops/workloads/hello/networkpolicies.yaml`.
 - [x] **Step 4 — Trivy Operator deployed** ✅ (chart `0.32.1`, app `0.30.1`, ns `trivy-system`). `VulnerabilityReport` + `ConfigAuditReport` populated cluster-wide (CVE counts per image; config audit mostly clean for our workloads, expected highs on privileged infra like Cilium/Longhorn). Metrics → Prometheus. `ignoreUnfixed: true`, `scanJobsConcurrentLimit: 3`. `gitops/apps/trivy-operator.yaml`.
 - [x] **Step 5 — Hardening** ✅: audit logging, RBAC least-privilege, trust `homelab-ca`.
