@@ -147,8 +147,8 @@ layering on platform services.
   **Step 2 (Longhorn) complete** ✅ — replicated block storage on the workers' dedicated disks.
 - [x] **Step 3 — Cilium LB-IPAM + L2** ✅ — Cilium upgraded with `l2announcements.enabled` (+ raised `k8sClientRateLimit`); `CiliumLoadBalancerIPPool homelab-pool` (`.230–.250`, 21 IPs) + `CiliumL2AnnouncementPolicy homelab-l2` (workers). Verified: test `LoadBalancer` Service got `192.168.216.230` and returned `HTTP 200` over the LAN. CRD versions: pool `cilium.io/v2`, policy `cilium.io/v2alpha1`.
 - [~] **Step 4 — Ingress (ingress-nginx) + cert-manager**:
-  - [~] 4a — `ingress-nginx` via Helm into `ingress-nginx` ns, controller Service pinned to `192.168.216.230` (annotation `io.cilium/lb-ipam-ips`). Manifests `kubernetes/bootstrap/ingress-nginx/`.
-  - [ ] 4b — cert-manager + a ClusterIssuer (self-signed/CA to start; ACME DNS-01 later).
+  - [x] 4a — `ingress-nginx` installed via Helm (2 replicas), controller Service pinned to `192.168.216.230` (annotation `io.cilium/lb-ipam-ips`). Verified EXTERNAL-IP `.230`, `curl` → `HTTP 404` (healthy default backend). Manifests `kubernetes/bootstrap/ingress-nginx/`.
+  - [~] 4b — cert-manager via Helm (`crds.enabled=true`) + internal CA chain: `selfsigned` ClusterIssuer → `homelab-ca` root Certificate (10y, in `cert-manager` ns) → `homelab-ca-issuer` CA ClusterIssuer. Manifests `kubernetes/bootstrap/cert-manager/issuers.yaml`. ACME DNS-01 deferred to Phase 9.
 - [ ] **Step 5 — Namespaces, RBAC, Pod Security Standards.**
 
 ---
