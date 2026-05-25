@@ -1,0 +1,18 @@
+# Talos Image Factory schematic — system extensions required by Longhorn.
+#
+# Longhorn attaches volumes over iSCSI, which Talos doesn't ship by default.
+#   - siderolabs/iscsi-tools      → iscsid / iscsiadm
+#   - siderolabs/util-linux-tools → fstrim and friends Longhorn uses
+#
+# Build a custom installer image:
+#   curl -X POST --data-binary @talos/schematic.yaml https://factory.talos.dev/schematics
+#   -> {"id":"<schematic-id>"}
+#   installer image = factory.talos.dev/installer/<schematic-id>:v1.13.2
+#
+# Then upgrade each worker (one at a time):
+#   talosctl upgrade -n <worker-ip> --image factory.talos.dev/installer/<schematic-id>:v1.13.2
+customization:
+  systemExtensions:
+    officialExtensions:
+      - siderolabs/iscsi-tools
+      - siderolabs/util-linux-tools

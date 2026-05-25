@@ -137,8 +137,12 @@ Cluster is up (k8s **v1.36.0**, 6 nodes `NotReady` — no CNI). Bringing it onli
 layering on platform services.
 
 ### Steps
-- [x] **Step 1 — Cilium installed** ✅ — Helm into `kube-system` with `kubernetes/bootstrap/cilium/values.yaml`. DaemonSet rolled out 6/6 (one cilium pod per node) + operator + Hubble relay/UI. **All 6 nodes `Ready`** — cluster fully functional.
-- [ ] **Step 2 — Longhorn** replicated storage (uses workers' `/dev/sdb`).
+- [x] **Step 1 — Cilium `v1.19.4` installed** ✅ — Helm into `kube-system` with `kubernetes/bootstrap/cilium/values.yaml`. DaemonSet rolled out 6/6 (cilium + cilium-envoy per node) + operator + Hubble relay/UI. **All 6 nodes `Ready`** — cluster fully functional.
+  > Observed: Pod Security Admission is active (Talos default) — a plain `nginx` pod triggers `restricted` *warnings*. Privileged components (e.g. Longhorn) will need their namespace labeled `pod-security.kubernetes.io/enforce: privileged`.
+- [~] **Step 2 — Longhorn** replicated storage (workers' `/dev/sdb`). Talos prereqs:
+  (2a) add `iscsi-tools` + `util-linux-tools` system extensions via Image Factory + `talosctl upgrade` (Longhorn needs iSCSI);
+  (2b) mount `/dev/sdb` at `/var/mnt/longhorn` via `machine.disks`;
+  (2c) Helm install, namespace labeled `privileged`, restricted to workers. Schematic: `talos/schematic.yaml`.
 - [ ] **Step 3 — Ingress controller + cert-manager** (TLS).
 - [ ] **Step 4 — Cilium LB-IPAM + L2 announcements** (LoadBalancer pool `.230–.250`).
 - [ ] **Step 5 — Namespaces, RBAC, Pod Security Standards.**
