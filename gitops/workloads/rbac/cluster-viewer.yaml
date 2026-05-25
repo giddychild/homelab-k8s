@@ -1,0 +1,22 @@
+# Least-privilege example: a read-only identity. Bound to the built-in `view`
+# ClusterRole — can read most resources cluster-wide, but cannot write/delete
+# and cannot read Secrets. The pattern for giving teammates/CI scoped access.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-viewer
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-viewer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view          # built-in read-only role (excludes Secrets)
+subjects:
+  - kind: ServiceAccount
+    name: cluster-viewer
+    namespace: kube-system
