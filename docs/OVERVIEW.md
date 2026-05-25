@@ -43,7 +43,7 @@ the repo *is* the system.
 6. **GitOps (ArgoCD)** — adopted the *app-of-apps* pattern so the cluster now deploys and self-heals everything from the repo.
 7. **Observability** — Prometheus, Grafana, Loki, and Alertmanager, all GitOps-managed.
 8. **AI Ops** — deployed Ollama + Open WebUI + n8n, and built an **AI incident summarizer**: a real cluster alert flows Prometheus → Alertmanager → n8n → a local LLM that writes a plain-English summary with likely cause and next steps.
-9. **Security** *(in progress)* — Vault + External Secrets Operator for secrets, Cilium network policies, Trivy vulnerability scanning, **RBAC least-privilege identities**, and an **internal CA trusted on client devices** are in place; Tailscale and audit logging next.
+9. **Security** *(in progress)* — Vault + External Secrets Operator for secrets, Cilium network policies, Trivy vulnerability scanning, **RBAC least-privilege identities**, an **internal CA trusted on client devices**, and **explicit API-server audit logging** are in place; Tailscale (zero-trust remote access) is the last item.
 10. **Production readiness** *(next)* — backup/DR, upgrade & chaos testing, runbooks.
 
 ## Key decisions & configurations

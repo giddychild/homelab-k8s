@@ -19,62 +19,76 @@ bash scripts/talos-gen.sh          # rebuilds talos/controlplane.yaml with the a
 grep -A2 'auditPolicy' talos/controlplane.yaml
 ```
 
+> **Two gotchas (learned applying this):** `apply-config` needs an explicit
+> endpoint `-e <ip>` (read commands auto-resolve it; config-push does not). And
+> the live audit log is **`/var/log/audit/kube/kube-apiserver.log`** — the
+> `*-<timestamp>.log` siblings are rotated archives.
+
 ## 2. Validate before applying (no changes made)
 
 ```bash
-for ip in 201 202 203; do
-  echo "== cp-$ip =="
-  talosctl -n 192.168.216.$ip apply-config \
-    -f talos/controlplane.yaml \
-    --config-patch @talos/patches/nodes/talos-cp-${ip#20}.yaml \
-    --dry-run
-done
+talosctl -e 192.168.216.201 -n 192.168.216.201 apply-config \
+  -f talos/controlplane.yaml \
+  --config-patch @talos/patches/nodes/talos-cp-01.yaml \
+  --dry-run
 ```
-`--dry-run` prints the diff and validates the config without touching the node.
-Expect the diff to show only the new `auditPolicy` (and its `--audit-*` apiserver flags).
+`--dry-run` prints the diff and validates without touching the node. Expect the
+diff to show **only** the new `auditPolicy` rules inserted ahead of the existing
+catch-all `- level: Metadata` — no PKI/cert changes.
 
 ## 3. Apply, one node at a time
 
 ```bash
-apply_cp () {   # $1 = last octet (201/202/203), $2 = node file suffix (01/02/03)
-  talosctl -n 192.168.216.$1 apply-config \
-    -f talos/controlplane.yaml \
-    --config-patch @talos/patches/nodes/talos-cp-$2.yaml \
-    --mode=auto
+apply_cp () {                      # $1 = 01 | 02 | 03
+  ip=192.168.216.2$1
+  echo "=== applying to $ip ==="
+  talosctl -e $ip -n $ip apply-config -f talos/controlplane.yaml \
+    --config-patch @talos/patches/nodes/talos-cp-$1.yaml --mode=auto
+  sleep 10
+  until talosctl -e $ip -n $ip get staticpodstatus 2>/dev/null | grep apiserver | grep -q True; do
+    echo "  waiting for $ip apiserver..."; sleep 4; done
+  echo "  $ip apiserver Ready"
 }
-apply_cp 201 01
-# wait until the API server on this node is back before continuing:
-until talosctl -n 192.168.216.201 service kubelet | grep -q 'Running'; do sleep 3; done
-kubectl get --raw='/readyz?verbose' >/dev/null && echo "apiserver OK"
-apply_cp 202 02
-until talosctl -n 192.168.216.202 service kubelet | grep -q 'Running'; do sleep 3; done
-apply_cp 203 03
+apply_cp 01; apply_cp 02; apply_cp 03
+kubectl get nodes        # may briefly refuse on the VIP as the last apiserver cycles — retry
 ```
-Audit-policy changes restart the kube-apiserver static pod (no node reboot);
-`--mode=auto` applies without rebooting when possible.
+Audit-policy changes restart the kube-apiserver static pod (**no node reboot**);
+`--mode=auto` applies without rebooting. The VIP keeps the other two apiservers
+serving while each restarts.
 
 ## 4. Verify it's working
 
 ```bash
-# a) the audit log file exists and is growing on each CP node
-talosctl -n 192.168.216.201 ls /var/log/audit/kube/
-talosctl -n 192.168.216.201 read /var/log/audit/kube/kube-apiserver-audit.log | tail -3
+LOG=/var/log/audit/kube/kube-apiserver.log
+PROBE=audit-probe-$RANDOM
+kubectl create clusterrole $PROBE --verb=get --resource=pods   # RBAC write -> RequestResponse
+kubectl -n kube-system get secret >/dev/null                   # secret read -> Metadata, no value
+sleep 2
 
-# b) generate a high-signal RBAC event, then confirm it was captured at RequestResponse
-kubectl create clusterrole audit-probe --verb=get --resource=pods --dry-run=server -o yaml >/dev/null
-kubectl create clusterrole audit-probe --verb=get --resource=pods
-talosctl -n 192.168.216.201 read /var/log/audit/kube/kube-apiserver-audit.log \
-  | grep audit-probe | tail -1 | python3 -m json.tool | grep -E '"level"|"verb"|"resource"'
-kubectl delete clusterrole audit-probe
+echo "--- RBAC event level (expect RequestResponse) ---"
+for ip in 201 202 203; do
+  talosctl -e 192.168.216.$ip -n 192.168.216.$ip read $LOG 2>/dev/null \
+    | grep "$PROBE" | grep -o '"level":"[^"]*"' | sort -u | sed "s/^/cp-$ip /"
+done
 
-# c) CRITICAL — confirm Secret VALUES are NOT logged (must be Metadata, no responseObject)
-kubectl -n kube-system get secret >/dev/null
-talosctl -n 192.168.216.201 read /var/log/audit/kube/kube-apiserver-audit.log \
-  | grep '"resource":"secrets"' | tail -1 | grep -c responseObject   # expect 0
+echo "--- secret event level (expect Metadata) ---"
+for ip in 201 202 203; do
+  talosctl -e 192.168.216.$ip -n 192.168.216.$ip read $LOG 2>/dev/null \
+    | grep '"objectRef":{"resource":"secrets"' | tail -1 | grep -o '"level":"[^"]*"' | sed "s/^/cp-$ip /"
+done
+
+echo "--- secret events leaking a VALUE (responseObject) — MUST be 0 ---"
+for ip in 201 202 203; do
+  talosctl -e 192.168.216.$ip -n 192.168.216.$ip read $LOG 2>/dev/null \
+    | grep '"resource":"secrets"'
+done | grep -c responseObject
+
+kubectl delete clusterrole $PROBE
 ```
 
-`level` should read `RequestResponse` for the RBAC event and `Metadata` for the
-Secret access, and step (c) must print `0` — proof secret contents never reach the log.
+Pass criteria: RBAC event logged at `RequestResponse`, secret access at
+`Metadata`, and the leak count a genuine `0` (the Metadata check above proves
+secret events exist, so `0` means values are absent — not that nothing was read).
 
 ## Rollback
 
