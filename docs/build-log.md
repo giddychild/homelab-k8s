@@ -142,7 +142,9 @@ layering on platform services.
 - [~] **Step 2 — Longhorn** replicated storage (workers' `/dev/sdb`):
   - [x] **2a** — `iscsi-tools` v0.2.0 + `util-linux-tools` 2.41.4 added to all 3 workers via Image Factory (`talos/schematic.yaml`, id `613e1592b2da...961245`) + rolling `talosctl upgrade --image factory.talos.dev/installer/<id>:v1.13.2`.
   - [x] **2b** — `/dev/sdb` mounted at `/var/lib/longhorn` (xfs) on all 3 workers via `machine.disks`.
-  - [~] **2c** — Helm install into `longhorn-system` (PSS `privileged`), workers-only (CPs tainted), `longhorn` as default StorageClass. Manifests in `kubernetes/bootstrap/longhorn/`.
+  - [x] **2c** — Longhorn deployed via Helm into `longhorn-system` (PSS `privileged`). All pods Running (manager/CSI/instance-manager on the 3 workers), `longhorn` is the **default StorageClass**, 3 worker storage nodes schedulable. Manifests in `kubernetes/bootstrap/longhorn/`.
+
+  **Step 2 (Longhorn) complete** ✅ — replicated block storage on the workers' dedicated disks.
 - [ ] **Step 3 — Ingress controller + cert-manager** (TLS).
 - [ ] **Step 4 — Cilium LB-IPAM + L2 announcements** (LoadBalancer pool `.230–.250`).
 - [ ] **Step 5 — Namespaces, RBAC, Pod Security Standards.**
