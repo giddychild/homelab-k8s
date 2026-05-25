@@ -1,8 +1,7 @@
-# Per-node patch — applied at `talosctl apply-config --config-patch`.
-# Static IP + hostname. Control-plane nodes also carry the shared VIP (.200).
+# Per-node patch — control-plane: static IP + shared VIP (v1alpha1),
+# hostname via the HostnameConfig document (Talos 1.13 multi-doc model).
 machine:
   network:
-    hostname: talos-cp-01
     interfaces:
       - deviceSelector:
           driver: vmxnet3
@@ -14,3 +13,7 @@ machine:
             gateway: 192.168.216.1
         vip:
           ip: 192.168.216.200
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+hostname: talos-cp-01

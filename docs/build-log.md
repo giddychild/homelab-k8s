@@ -109,6 +109,14 @@ comes in Phase 5) and kube-proxy disabled (Cilium replaces it with eBPF).
 - [ ] **Step 3 — Collect each node's maintenance-mode IP** (ESXi console or Orbi attached devices).
 - [ ] **Step 4 — `apply-config`** per node (base config + its per-node patch) → node installs Talos, reboots onto its static IP.
 - [ ] **Step 5 — `talosctl bootstrap`** (etcd, once on cp-01) → fetch kubeconfig → nodes show `NotReady` until Cilium.
+
+> **Gotcha (Talos 1.13):** the hostname must be set via a `HostnameConfig` document
+> (`apiVersion: v1alpha1`, `kind: HostnameConfig`, `hostname: <name>`), **not** via
+> `machine.network.hostname`. Setting both errors with *"static hostname is already set
+> in v1alpha1 config"*. Per-node patches updated: IP/VIP in v1alpha1 `interfaces` +
+> hostname in a separate `HostnameConfig` doc. Also: regenerate with `--with-secrets`
+> (keep cluster identity) and `--force` (overwrite); `--with-examples=false` does NOT
+> remove `HostnameConfig` (it's a core doc, not an example).
 - `talosctl gen config` → patches (VIP, install disk `/dev/sda`, static IPs, allow
   scheduling? no) → `apply-config` to each node's maintenance IP → `talosctl bootstrap`
   (etcd, once) → fetch kubeconfig → validate nodes (they'll be `NotReady` until Cilium).
