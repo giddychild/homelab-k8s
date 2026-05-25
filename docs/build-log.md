@@ -173,6 +173,22 @@ stay Helm-installed; ArgoCD manages everything layered on top.
 - [ ] **Step 3 — Migrate/define more apps** as ArgoCD Applications under `gitops/apps/` (done incrementally per phase).
 
 **Phase 6 (GitOps) functional** ✅ — cluster is self-managing from the repo.
+
+---
+
+## Phase 7 — Observability  🟡 IN PROGRESS  (2026-05-25)
+
+Deployed via GitOps — ArgoCD `Application`s committed under `gitops/apps/`.
+
+### Steps
+- [~] **Step 1 — kube-prometheus-stack** (chart `85.3.3`): Prometheus + Grafana +
+  Alertmanager + node-exporter + kube-state-metrics → namespace `monitoring`
+  (PSS `privileged` via `managedNamespaceMetadata` for node-exporter). Grafana at
+  `grafana.192.168.216.230.nip.io` + CA TLS; Prometheus (20Gi)/Alertmanager (2Gi)/
+  Grafana (5Gi) on Longhorn. `ServerSideApply=true` for the large operator CRDs.
+  App: `gitops/apps/kube-prometheus-stack.yaml`. Grafana login `admin` / `prom-operator` (rotate in Phase 9).
+- [ ] **Step 2 — Loki** (+ Alloy/promtail) for centralized logs.
+- [ ] **Step 3 — Dashboards, alert rules, node monitoring review.**
 - [ ] **Step 5 — Namespaces, RBAC, Pod Security Standards.**
 
 ---

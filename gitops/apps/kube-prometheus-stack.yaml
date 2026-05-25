@@ -1,0 +1,67 @@
+# Observability stack (Prometheus + Grafana + Alertmanager + node-exporter +
+# kube-state-metrics), deployed by ArgoCD straight from the Helm repo.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 85.3.3
+    helm:
+      valuesObject:
+        grafana:
+          ingress:
+            enabled: true
+            ingressClassName: nginx
+            annotations:
+              cert-manager.io/cluster-issuer: homelab-ca-issuer
+            hosts:
+              - grafana.192.168.216.230.nip.io
+            tls:
+              - secretName: grafana-tls
+                hosts:
+                  - grafana.192.168.216.230.nip.io
+          persistence:
+            enabled: true
+            storageClassName: longhorn
+            size: 5Gi
+          # NOTE: default login is admin / prom-operator — rotate this in Phase 9.
+        prometheus:
+          prometheusSpec:
+            retention: 15d
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: longhorn
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 20Gi
+        alertmanager:
+          alertmanagerSpec:
+            storage:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: longhorn
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 2Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    # node-exporter needs hostNetwork/hostPath → namespace must allow privileged.
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: privileged
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true   # the prometheus-operator CRDs are too big for client-side apply
