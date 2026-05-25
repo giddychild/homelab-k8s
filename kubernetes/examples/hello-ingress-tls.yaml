@@ -1,0 +1,80 @@
+# End-to-end capstone: a secure demo app reachable over HTTPS through ingress,
+# with a TLS cert auto-issued by our internal CA. Validates CNI + ingress +
+# cert-manager + DNS together. Uses nip.io so no DNS setup is needed:
+#   hello.192.168.216.230.nip.io  ->  192.168.216.230 (the ingress LB IP).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+  labels:
+    # Enforce the strictest Pod Security level — the deployment below complies.
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello
+  namespace: demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hello
+  template:
+    metadata:
+      labels:
+        app: hello
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: hello
+          # Unprivileged nginx: runs as uid 101, listens on 8080 (no root needed).
+          image: nginxinc/nginx-unprivileged:stable-alpine
+          ports:
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello
+  namespace: demo
+spec:
+  selector:
+    app: hello
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hello
+  namespace: demo
+  annotations:
+    # cert-manager watches this and auto-creates a Certificate + TLS secret.
+    cert-manager.io/cluster-issuer: homelab-ca-issuer
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - hello.192.168.216.230.nip.io
+      secretName: hello-tls
+  rules:
+    - host: hello.192.168.216.230.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hello
+                port:
+                  number: 80
