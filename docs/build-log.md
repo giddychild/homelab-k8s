@@ -216,6 +216,25 @@ Proceeding on 100 Mbps — deploy the stack now, pull only small models until gi
 
 ---
 
+## Phase 9 — Security  🟡 IN PROGRESS  (2026-05-25)
+
+Production-grade, job-market-relevant tooling (user's explicit goal).
+
+### Steps
+- [~] **Step 1 — Secrets: HashiCorp Vault + External Secrets Operator**.
+  - Vault chart `0.32.0` (app `1.21.2`), standalone + file storage on Longhorn (2Gi),
+    UI at `vault.192.168.216.230.nip.io`, injector off, ns `vault` (PSS `privileged` for mlock).
+    App `gitops/apps/vault.yaml`. **Requires manual init + unseal** (keys saved out-of-band;
+    unseal needed after restarts).
+  - ESO chart `2.5.0` → `ClusterSecretStore` (Vault, Kubernetes auth) + `ExternalSecret` CRs.
+  - First migration: `grafana-admin` → Vault KV → `ExternalSecret` in Git.
+- [ ] **Step 2 — Tailscale** secure remote access.
+- [ ] **Step 3 — Cilium network policies** (default-deny + allows).
+- [ ] **Step 4 — Trivy** image/vulnerability scanning.
+- [ ] **Step 5 — Hardening**: audit logging, RBAC least-privilege, trust `homelab-ca`.
+
+---
+
 ## Appendix A — Commands run (chronological)
 
 ```powershell
