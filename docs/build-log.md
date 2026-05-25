@@ -169,8 +169,10 @@ stay Helm-installed; ArgoCD manages everything layered on top.
 
 ### Steps
 - [x] **Step 1 — ArgoCD installed** via Helm into `argocd` (7 pods Running), server `insecure` behind ingress at `argocd.192.168.216.230.nip.io` with CA-issued TLS. `/healthz` → HTTP 200. Values: `kubernetes/bootstrap/argocd/values.yaml`. Admin password in secret `argocd-initial-admin-secret`.
-- [~] **Step 2 — app-of-apps**: `gitops/bootstrap/root-app.yaml` (root Application watches `gitops/apps/` recursively) → child `gitops/apps/hello.yaml` → deploys `gitops/workloads/hello/` (the demo, now GitOps-managed). Bootstrap once with `kubectl apply -f gitops/bootstrap/root-app.yaml`.
-- [ ] **Step 3 — Migrate/define more apps** (monitoring, etc.) as ArgoCD Applications under `gitops/apps/`.
+- [x] **Step 2 — app-of-apps live** ✅: bootstrapped once with `kubectl apply -f gitops/bootstrap/root-app.yaml`. `root` + `hello` Applications `Synced/Healthy`; `hello` deployed by ArgoCD (HTTP 200, 2 pods). **Auto-sync demonstrated**: a Git commit scaling `hello` 2→3 replicas reconciles to the cluster with zero `kubectl` (auto-sync + selfHeal + prune enabled).
+- [ ] **Step 3 — Migrate/define more apps** as ArgoCD Applications under `gitops/apps/` (done incrementally per phase).
+
+**Phase 6 (GitOps) functional** ✅ — cluster is self-managing from the repo.
 - [ ] **Step 5 — Namespaces, RBAC, Pod Security Standards.**
 
 ---
