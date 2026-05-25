@@ -221,13 +221,13 @@ Proceeding on 100 Mbps — deploy the stack now, pull only small models until gi
 Production-grade, job-market-relevant tooling (user's explicit goal).
 
 ### Steps
-- [~] **Step 1 — Secrets: HashiCorp Vault + External Secrets Operator**.
+- [x] **Step 1 — Secrets: Vault + ESO** ✅ **verified**.
   - Vault chart `0.32.0` (app `1.21.2`), standalone + file storage on Longhorn (2Gi),
     UI at `vault.192.168.216.230.nip.io`, injector off, ns `vault` (PSS `privileged` for mlock).
-    App `gitops/apps/vault.yaml`. **Requires manual init + unseal** (keys saved out-of-band;
-    unseal needed after restarts).
-  - ESO chart `2.5.0` → `ClusterSecretStore` (Vault, Kubernetes auth) + `ExternalSecret` CRs.
-  - First migration: `grafana-admin` → Vault KV → `ExternalSecret` in Git.
+    `gitops/apps/vault.yaml`. Init'd (1 share / 1 threshold) + unsealed; **unseal needed after restarts** (keys saved out-of-band).
+  - Vault config: KV v2 at `secret`, Kubernetes auth method, `eso` policy (read `secret/data/*`) + role bound to SA `external-secrets/external-secrets`.
+  - ESO chart `2.5.0` (API `external-secrets.io/v1`). `ClusterSecretStore vault-backend` → **Valid**; `ExternalSecret grafana-admin` (`gitops/workloads/eso-config/`) → **SecretSynced**.
+  - **Result:** `grafana-admin` Secret now sourced from Vault (`secret/grafana`), referenced not stored in Git. The production secrets pattern is live.
 - [ ] **Step 2 — Tailscale** secure remote access.
 - [ ] **Step 3 — Cilium network policies** (default-deny + allows).
 - [ ] **Step 4 — Trivy** image/vulnerability scanning.
