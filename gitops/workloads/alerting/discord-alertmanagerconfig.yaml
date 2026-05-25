@@ -1,0 +1,30 @@
+# Discord notifications for warning/critical alerts.
+#
+# The webhook URL is referenced from the ESO-synced `alertmanager-discord` secret
+# via apiURL (a SecretKeySelector) — so it never lands in Git. The prometheus-
+# operator merges this into Alertmanager's config (selected by the label below via
+# alertmanagerConfigSelector; matcherStrategy None makes the matchers cluster-wide).
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: discord
+  namespace: monitoring
+  labels:
+    alertmanagerConfig: discord
+spec:
+  route:
+    receiver: discord
+    groupBy: ["namespace", "alertname"]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 12h
+    matchers:
+      - name: severity
+        matchType: "=~"
+        value: "warning|critical"
+  receivers:
+    - name: discord
+      discordConfigs:
+        - apiURL:
+            name: alertmanager-discord
+            key: discord_url
