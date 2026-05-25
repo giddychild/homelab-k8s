@@ -46,7 +46,8 @@ spec:
             - name: default
               provider: aws
               bucket: 155125294186-homelab-k8s-backups
-              default: true
+              prefix: velero          # Velero owns/validates only this sub-path;
+              default: true           # lets etcd-snapshots/ share the bucket safely
               config:
                 region: us-east-1
         # We use File System Backup, not volume snapshots → no snapshot location.
