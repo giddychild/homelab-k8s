@@ -181,12 +181,11 @@ stay Helm-installed; ArgoCD manages everything layered on top.
 Deployed via GitOps — ArgoCD `Application`s committed under `gitops/apps/`.
 
 ### Steps
-- [~] **Step 1 — kube-prometheus-stack** (chart `85.3.3`): Prometheus + Grafana +
-  Alertmanager + node-exporter + kube-state-metrics → namespace `monitoring`
-  (PSS `privileged` via `managedNamespaceMetadata` for node-exporter). Grafana at
-  `grafana.192.168.216.230.nip.io` + CA TLS; Prometheus (20Gi)/Alertmanager (2Gi)/
-  Grafana (5Gi) on Longhorn. `ServerSideApply=true` for the large operator CRDs.
-  App: `gitops/apps/kube-prometheus-stack.yaml`. Grafana login `admin` / `prom-operator` (rotate in Phase 9).
+- [x] **Step 1 — kube-prometheus-stack deployed** ✅ (chart `85.3.3`) via ArgoCD (Synced/Healthy).
+  All monitoring pods Running (node-exporter on all 6 nodes); PVCs Bound on Longhorn
+  (Prometheus 20Gi, Grafana 5Gi, Alertmanager 2Gi). Grafana at `grafana.192.168.216.230.nip.io`
+  + CA TLS. `ServerSideApply=true` handled the large operator CRDs. App: `gitops/apps/kube-prometheus-stack.yaml`.
+  Login `admin` / `prom-operator` (rotate in Phase 9).
 - [ ] **Step 2 — Loki** (+ Alloy/promtail) for centralized logs.
 - [ ] **Step 3 — Dashboards, alert rules, node monitoring review.**
 - [ ] **Step 5 — Namespaces, RBAC, Pod Security Standards.**
