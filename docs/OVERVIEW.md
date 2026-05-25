@@ -22,7 +22,7 @@ the repo *is* the system.
 | **Operating system / K8s** | **Talos Linux** | A minimal, immutable, API-driven OS purpose-built for Kubernetes — no SSH, no shell, fully declarative |
 | **Cluster networking** | **Cilium** (eBPF) | The CNI — pod networking, network policy, and a built-in load balancer; *replaces* kube-proxy for speed |
 | **Persistent storage** | **Longhorn** | Replicated block storage across the worker nodes for stateful apps |
-| **Ingress / TLS** | **ingress-nginx + cert-manager** | HTTP routing into the cluster with automatic TLS certificates (issued by an internal CA) |
+| **Ingress / TLS** | **ingress-nginx + cert-manager** | HTTP routing + automatic TLS — **publicly-trusted Let's Encrypt certs via Cloudflare DNS-01** (auto-renewing, no per-device CA import), plus an internal CA for internal-only use |
 | **GitOps engine** | **ArgoCD** | Watches this Git repo and makes the cluster match it; every change is a commit, rollbacks are `git revert` |
 | **Metrics** | **Prometheus + Grafana** | Cluster/node/app metrics, dozens of dashboards, and alerting rules |
 | **Logs** | **Loki + Promtail** | Centralized log aggregation, queryable alongside metrics in Grafana |

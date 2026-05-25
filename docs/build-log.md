@@ -256,6 +256,18 @@ DR layers: (1) cluster config/apps already recoverable from **Git + ArgoCD**; (2
 
 ---
 
+## Day-2 — Public-trusted TLS via Let's Encrypt + Cloudflare DNS-01  (2026-05-25)
+
+Replaced per-device internal-CA trust with publicly-trusted certs **without exposing anything** (chose this over a Cloudflare Tunnel — Tailscale already covers remote access, and DNS-01 needs zero inbound). Completes the ACME DNS-01 item noted in `cert-manager/issuers.yaml`.
+
+- **Issuers:** `letsencrypt-staging` + `letsencrypt-prod` ClusterIssuers, ACME **DNS-01 via Cloudflare** (`kubernetes/bootstrap/cert-manager/letsencrypt-issuers.yaml`). Scoped Cloudflare API token (DNS-edit, `giddyland.net` zone only) in Vault `secret/cloudflare-dns` → ESO → Secret `cloudflare-api-token` (cert-manager ns); `gitops/workloads/eso-config/cloudflare-dns-externalsecret.yaml`.
+- **Domain/scheme:** `giddyland.net`; services at `*.apps.giddyland.net`. One **DNS-only (grey-cloud)** wildcard `A *.apps.giddyland.net → 192.168.216.230` — public DNS → private IP, so trusted certs but **reachable only on LAN/Tailscale** (no exposure).
+- **Migrated:** grafana, chat (open-webui), vault, n8n, hello (GitOps; per-ingress annotation `cert-manager.io/cluster-issuer: letsencrypt-prod`) + **argocd** (Helm: `helm upgrade argocd argo/argo-cd -n argocd --version 9.5.15 -f kubernetes/bootstrap/argocd/values.yaml`). All verified **TRUSTED** (Let's Encrypt), auto-renewing. Internal `homelab-ca` issuer retained for internal-only use.
+- **Add a new service with trusted TLS:** ingress host `svc.apps.giddyland.net` + annotation `cert-manager.io/cluster-issuer: letsencrypt-prod` + a TLS block → cert auto-issues; the wildcard A already resolves it.
+- **Gotchas:** validate with the **staging** issuer first (LE prod rate limits); ingress-nginx serves its "Fake Certificate" until cert-manager re-issues the secret for the new host and nginx reloads (~1 min); keep the wildcard DNS record **DNS-only**, never proxied (a 2nd-level wildcard isn't covered by Cloudflare's edge cert).
+
+---
+
 ## Appendix A — Commands run (chronological)
 
 ```powershell
