@@ -7,8 +7,9 @@
 # Creds: AWS-style credentials file in Secret `velero-credentials`, templated by
 # ESO from Vault `secret/velero` (see gitops/workloads/eso-config/) — none in Git.
 #
-# Version pin: chart 11.4.0 = Velero 1.17.1, matched with plugin v1.13.0 (the
-# combo the AWS-plugin compatibility matrix confirms).
+# Version pin: chart 12.0.1 = Velero 1.18.0, matched with AWS plugin v1.14.1
+# (the v1.14.x line targets Velero 1.18.x). Chart 12.x also defaults the CRD-job
+# helper to registry.k8s.io/kubectl (11.x used the now-dead bitnamilegacy image).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -19,12 +20,11 @@ spec:
   source:
     repoURL: https://vmware-tanzu.github.io/helm-charts
     chart: velero
-    targetRevision: 11.4.0
+    targetRevision: 12.0.1
     helm:
       valuesObject:
-        # The chart's CRD-install hook defaults to docker.io/bitnamilegacy/kubectl,
-        # whose :1.36 tag doesn't exist (Bitnami sunset their free images). Point it
-        # at the official kubectl image matching the cluster version instead.
+        # Pin the CRD-install hook's kubectl helper to an explicit, existing tag
+        # (avoids any auto-derived tag that might 404 against registry.k8s.io).
         kubectl:
           image:
             repository: registry.k8s.io/kubectl
@@ -32,7 +32,7 @@ spec:
         # AWS provider plugin (S3-compatible → R2).
         initContainers:
           - name: velero-plugin-for-aws
-            image: velero/velero-plugin-for-aws:v1.13.0
+            image: velero/velero-plugin-for-aws:v1.14.1
             imagePullPolicy: IfNotPresent
             volumeMounts:
               - mountPath: /target
