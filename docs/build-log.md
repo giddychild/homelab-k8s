@@ -231,7 +231,11 @@ Production-grade, job-market-relevant tooling (user's explicit goal).
 - [ ] **Step 2 — Tailscale** secure remote access.
 - [x] **Step 3 — Network policies** ✅ (Cilium-enforced): `demo` ns default-deny + DNS-egress + ingress-from-ingress-nginx. **Verified:** ingress path → HTTP 200, pod egress → BLOCKED. Used Hubble to observe real flows (the production way to author policies before locking a namespace down). `gitops/workloads/hello/networkpolicies.yaml`.
 - [x] **Step 4 — Trivy Operator deployed** ✅ (chart `0.32.1`, app `0.30.1`, ns `trivy-system`). `VulnerabilityReport` + `ConfigAuditReport` populated cluster-wide (CVE counts per image; config audit mostly clean for our workloads, expected highs on privileged infra like Cilium/Longhorn). Metrics → Prometheus. `ignoreUnfixed: true`, `scanJobsConcurrentLimit: 3`. `gitops/apps/trivy-operator.yaml`.
-- [ ] **Step 5 — Hardening**: audit logging, RBAC least-privilege, trust `homelab-ca`.
+- [~] **Step 5 — Hardening**: audit logging, RBAC least-privilege, trust `homelab-ca`.
+  - [x] **RBAC least-privilege** ✅ — `rbac` App (`gitops/apps/rbac.yaml`) → `gitops/workloads/rbac/cluster-viewer.yaml`: SA `cluster-viewer` (kube-system) bound to built-in `view` ClusterRole. **Verified least-privilege** via a token-scoped kubeconfig (`kubectl create token` → standalone kubeconfig): reads 148 pods / 15 ns, but `nodes` denied (view excludes cluster-scoped infra), `delete pods` → `no`, Secrets → `Forbidden`. The pattern for scoped teammate/CI access.
+  - [x] **Trust `homelab-ca` on Windows** ✅ — exported root from secret `homelab-ca-key-pair` (cert-manager), imported to `CurrentUser\Root` (thumbprint `A69DD4DF957DC8E7B79B55C15DEE58FFD8D00694`, valid 2026-05-25→2036). Verified: ArgoCD + Grafana now serve clean HTTPS (chain validates, HTTP 200). Chrome/Edge use this store (restart to pick up); Firefox has its own store (separate import if needed).
+  - [x] **Laptop kubeconfig restored** ✅ — Windows `~/.kube/config` had two dead contexts (expired GKE token; stale **RKE2** admin cert from 2024, expired 2025-07-24, pointing at wrong IP `.50`). Replaced with fresh `talosctl kubeconfig` (context `admin@homelab-prod`, VIP `.200`, cert valid 1yr). Old config backed up `~/.kube/config.stale-rke2-gke.bak-20260525`. `kubectl` now works directly from the laptop. **This was the cause of an apparent "control plane down" scare — the cluster was healthy throughout (`talosctl health` all OK, etcd 3-member quorum intact); only the laptop was misconfigured.**
+  - [ ] audit logging — still TODO.
 
 ---
 
@@ -283,10 +287,11 @@ terraform apply   # typed 'yes' -> 6 Talos VMs created
 | Git repo | https://github.com/giddychild/homelab-k8s |
 | `mgmt-jump` IP | `192.168.216.30` (Orbi reservation, MAC `00:0c:29:7b:49:ed`) |
 | `mgmt-jump` MAC / NIC / user | `00:0c:29:7b:49:ed` / `ens160` (VMXNET3) / `seyi` |
-| Talos API VIP (planned) | `192.168.216.40` |
-| Control plane (planned) | `192.168.216.41–43` |
-| Workers (planned) | `192.168.216.51–53` |
-| LB pool (planned) | `192.168.216.201–220` |
+| Talos API VIP (**actual**) | `192.168.216.200:6443` |
+| Control plane (**actual**) | `talos-cp-01/02/03` = `192.168.216.201–203` |
+| Workers (**actual**) | `talos-wk-01/02/03` = `192.168.216.211–213` |
+| Cilium LB pool (**actual**) | `192.168.216.230–250` (ingress on `.230`) |
+| Cluster k8s version | `v1.36.0` on Talos `v1.13.2` |
 
 ---
 

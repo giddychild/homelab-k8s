@@ -43,7 +43,7 @@ the repo *is* the system.
 6. **GitOps (ArgoCD)** — adopted the *app-of-apps* pattern so the cluster now deploys and self-heals everything from the repo.
 7. **Observability** — Prometheus, Grafana, Loki, and Alertmanager, all GitOps-managed.
 8. **AI Ops** — deployed Ollama + Open WebUI + n8n, and built an **AI incident summarizer**: a real cluster alert flows Prometheus → Alertmanager → n8n → a local LLM that writes a plain-English summary with likely cause and next steps.
-9. **Security** *(in progress)* — Vault + External Secrets Operator for secrets; Tailscale, network policies, vulnerability scanning, and audit logging next.
+9. **Security** *(in progress)* — Vault + External Secrets Operator for secrets, Cilium network policies, Trivy vulnerability scanning, **RBAC least-privilege identities**, and an **internal CA trusted on client devices** are in place; Tailscale and audit logging next.
 10. **Production readiness** *(next)* — backup/DR, upgrade & chaos testing, runbooks.
 
 ## Key decisions & configurations
@@ -54,7 +54,7 @@ the repo *is* the system.
   - Apps are reached through ingress over HTTPS (e.g. `grafana.…`, `argocd.…`, `chat.…`, `n8n.…`, `vault.…`), with certs from the internal CA.
 - **Networking:** diagnosed a real bottleneck — the server was cabled through an old **10/100 switch** capping it at 100 Mbps (gigabit switch being installed). Single flat subnet; cluster uses **static IPs above the DHCP range** plus a dedicated load-balancer IP pool that Cilium advertises on the LAN.
 - **Storage tuning:** Longhorn runs on dedicated disks; learned and fixed real capacity/over-provisioning behavior on spinning disks (the single HDD is the platform's main constraint — an SSD is a planned upgrade).
-- **Security-first:** Pod Security Standards enforced per namespace, TLS everywhere via the internal CA, kube-proxy replaced by eBPF, and secrets centralized in Vault.
+- **Security-first:** Pod Security Standards enforced per namespace, TLS everywhere via the internal CA (root trusted on client devices), kube-proxy replaced by eBPF, secrets centralized in Vault, and least-privilege RBAC identities (e.g. a read-only `cluster-viewer` bound to the built-in `view` role) for scoped teammate/CI access.
 - **Everything as code:** the entire platform lives in a public GitHub repo with a detailed, step-by-step build log — reproducible from scratch.
 
 ## Current status
