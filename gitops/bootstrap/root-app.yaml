@@ -1,0 +1,23 @@
+# The "app-of-apps" root. Apply this ONCE; afterwards ArgoCD manages everything.
+# It watches gitops/apps/ for child Application manifests and keeps them synced.
+# Adding a new app = commit a new Application YAML under gitops/apps/.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/giddychild/homelab-k8s.git
+    targetRevision: main
+    path: gitops/apps
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
