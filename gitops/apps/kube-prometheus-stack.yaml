@@ -58,20 +58,20 @@ spec:
                   resources:
                     requests:
                       storage: 2Gi
-          # Route firing alerts to the n8n AI incident summarizer.
-          # Watchdog (the always-firing heartbeat) goes to a null receiver so it
-          # doesn't spam Ollama; everything else is summarized by the LLM.
+          # Only CRITICAL alerts go to the n8n AI summarizer — CPU inference is slow,
+          # so we don't want to summarize every warning/info alert. Everything else
+          # falls through to the null receiver (still visible in Alertmanager/Grafana).
           config:
             route:
               group_by: ["namespace", "alertname"]
               group_wait: 30s
               group_interval: 5m
               repeat_interval: 12h
-              receiver: "n8n"
+              receiver: "null"
               routes:
-                - receiver: "null"
+                - receiver: "n8n"
                   matchers:
-                    - alertname = "Watchdog"
+                    - severity = "critical"
             receivers:
               - name: "null"
               - name: "n8n"

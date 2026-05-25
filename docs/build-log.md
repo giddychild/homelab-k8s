@@ -209,8 +209,10 @@ Proceeding on 100 Mbps — deploy the stack now, pull only small models until gi
   **⚠️ Longhorn capacity gotcha (runbook-worthy):** n8n's volume went `faulted` (0 replicas scheduled) and open-webui's went `degraded`. Root cause was NOT disk-full — workers had ~94 Gi free — but Longhorn reserves ~30% per disk, so the *schedulable* ceiling was ~69 Gi and we'd hit it (8 vols × 3 replicas). Fixes: (1) Ollama models → **1 replica** (re-downloadable) via `kubectl -n longhorn-system patch volume <id> -p '{"spec":{"numberOfReplicas":1}}'`; (2) raised `storageOverProvisioningPercentage` 100→**200** (worker disks are thin VMDKs on the 1.1 TB datastore). Then recreated the faulted PVC (scale deploy to 0 first — a pod reference keeps a `Terminating` PVC alive under GitOps).
 - [~] **Step 4 — AI ops agents**:
   - [x] **Incident summarizer** built in n8n & **verified**: Webhook (`POST /webhook/alertmanager`, respond immediately) → HTTP Request `POST http://ollama.ai-ops.svc.cluster.local:11434/api/generate`. Body via **"Using Fields Below"** (`model`, `stream`={{false}}, `prompt`=text+`{{ JSON.stringify($json.body.alerts) }}`) — the JS-object expression form failed with "missing request body"; field-based (or `JSON.stringify(...)`) works. A sample alert returns a plain-English SRE summary from `llama3.2:1b`. Published/active.
-  - [~] **Wire Alertmanager → n8n**: added `alertmanager.config` to `gitops/apps/kube-prometheus-stack.yaml` — `receiver: n8n` (webhook to `http://n8n.ai-ops.svc.cluster.local:5678/webhook/alertmanager`), Watchdog → `null`.
-  - [ ] Further agents: troubleshooting, remediation.
+  - [x] **Alertmanager → n8n wired & verified**: a synthetic alert auto-triggered n8n executions (LLM summaries) with zero manual input — the full Prometheus→Alertmanager→n8n→Ollama pipeline works. Refined to route **only `severity: critical`** to the summarizer (CPU inference is slow; warnings/info stay visible in Alertmanager/Grafana but don't hammer Ollama).
+  - [ ] Further agents (optional): troubleshooting (Loki query → LLM), remediation workflows.
+
+**Phase 8 core complete** ✅ — self-hosted AI ops: Ollama + Open WebUI + n8n, with a live AI incident-summarizer pipeline.
 
 ---
 
