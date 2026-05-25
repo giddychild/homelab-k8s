@@ -229,8 +229,8 @@ Production-grade, job-market-relevant tooling (user's explicit goal).
   - ESO chart `2.5.0` (API `external-secrets.io/v1`). `ClusterSecretStore vault-backend` → **Valid**; `ExternalSecret grafana-admin` (`gitops/workloads/eso-config/`) → **SecretSynced**.
   - **Result:** `grafana-admin` Secret now sourced from Vault (`secret/grafana`), referenced not stored in Git. The production secrets pattern is live.
 - [ ] **Step 2 — Tailscale** secure remote access.
-- [ ] **Step 3 — Cilium network policies** (default-deny + allows).
-- [~] **Step 4 — Trivy Operator** (chart `0.32.1`, app `0.30.1`) → ns `trivy-system`. Continuous image CVE scanning + config audit (`VulnerabilityReport`/`ConfigAuditReport`). `ignoreUnfixed: true`, `scanJobsConcurrentLimit: 3` (HDD-gentle), ServiceMonitor for Prometheus. `gitops/apps/trivy-operator.yaml`.
+- [~] **Step 3 — Network policies** (Cilium-enforced): demonstrate default-deny + explicit allows on the `demo` namespace (DNS egress + ingress from ingress-nginx). Production approach = observe flows via Hubble, then extend per-namespace incrementally. Policies in `gitops/workloads/hello/`.
+- [x] **Step 4 — Trivy Operator deployed** ✅ (chart `0.32.1`, app `0.30.1`, ns `trivy-system`). `VulnerabilityReport` + `ConfigAuditReport` populated cluster-wide (CVE counts per image; config audit mostly clean for our workloads, expected highs on privileged infra like Cilium/Longhorn). Metrics → Prometheus. `ignoreUnfixed: true`, `scanJobsConcurrentLimit: 3`. `gitops/apps/trivy-operator.yaml`.
 - [ ] **Step 5 — Hardening**: audit logging, RBAC least-privilege, trust `homelab-ca`.
 
 ---
