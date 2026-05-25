@@ -1,0 +1,76 @@
+# Talos etcd snapshot → S3 (cluster-state DR, layer 3).
+#
+# Daily at 02:00 (before Velero's 03:00). An initContainer runs `talosctl etcd
+# snapshot` (using a least-privilege os:etcd-backup talosconfig from Vault/ESO)
+# into a shared emptyDir; the main container uploads it to S3 with the same
+# credentials Velero uses. Runs in the `velero` namespace to reuse those creds.
+#
+# Retention: etcd snapshots are standalone full files (NOT a dedup repo), so a
+# prefix-scoped S3 lifecycle expiration on `etcd-snapshots/` IS safe — add one in
+# the S3 console (e.g. expire after 14 days) to cap cost.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: talos-etcd-snapshot
+  namespace: velero
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 65532            # make the shared emptyDir writable
+          initContainers:
+            # Take a consistent etcd snapshot from a control-plane node via the
+            # Talos API (apid :50000). Scoped os:etcd-backup credential.
+            - name: snapshot
+              image: ghcr.io/siderolabs/talosctl:v1.13.2
+              args:
+                - "--talosconfig=/talos/config"
+                - "--endpoints=192.168.216.201"
+                - "--nodes=192.168.216.201"
+                - "etcd"
+                - "snapshot"
+                - "/snap/etcd.snapshot"
+              volumeMounts:
+                - { name: talosconfig, mountPath: /talos, readOnly: true }
+                - { name: snap, mountPath: /snap }
+          containers:
+            # Upload the snapshot to S3 (timestamped key under etcd-snapshots/).
+            - name: upload
+              image: public.ecr.aws/aws-cli/aws-cli:latest
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  TS=$(date +%Y%m%d-%H%M%S)
+                  KEY="etcd-snapshots/etcd-${TS}.snapshot"
+                  aws s3 cp /snap/etcd.snapshot \
+                    "s3://155125294186-homelab-k8s-backups/${KEY}" --region us-east-1
+                  echo "uploaded s3://155125294186-homelab-k8s-backups/${KEY}"
+              env:
+                - { name: AWS_SHARED_CREDENTIALS_FILE, value: /aws/cloud }
+                - { name: HOME, value: /tmp }
+              volumeMounts:
+                - { name: snap, mountPath: /snap, readOnly: true }
+                - { name: aws-creds, mountPath: /aws, readOnly: true }
+          volumes:
+            - name: talosconfig
+              secret:
+                secretName: talos-etcd-backup    # ESO-managed (key: config)
+                items:
+                  - { key: config, path: config }
+            - name: aws-creds
+              secret:
+                secretName: velero-credentials    # reuse Velero's S3 creds (key: cloud)
+                items:
+                  - { key: cloud, path: cloud }
+            - name: snap
+              emptyDir: {}

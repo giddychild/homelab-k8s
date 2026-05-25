@@ -1,0 +1,19 @@
+# Talos etcd snapshot CronJob → S3 (Phase 10 cluster-state DR).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: etcd-backup
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/giddychild/homelab-k8s.git
+    targetRevision: main
+    path: gitops/workloads/etcd-backup
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: velero
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
