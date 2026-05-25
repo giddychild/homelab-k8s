@@ -1,8 +1,10 @@
-# Velero — cluster backup/restore + disaster recovery, to Cloudflare R2 (S3).
+# Velero — cluster backup/restore + disaster recovery, to AWS S3.
 #
 # Backups: File System Backup (kopia) via the node-agent, so PV *contents*
 # (Vault, n8n, Grafana, Loki, …) are captured regardless of storage driver,
-# plus the Kubernetes resources themselves. Target = R2 bucket homelab-k8s-backups.
+# plus the Kubernetes resources themselves. Target = S3 bucket in us-east-1.
+# (Chose S3 over Cloudflare R2: R2 doesn't implement S3 object tagging, and the
+#  AWS-plugin v1.9+ sends an x-amz-tagging header R2 rejects with 501.)
 #
 # Creds: AWS-style credentials file in Secret `velero-credentials`, templated by
 # ESO from Vault `secret/velero` (see gitops/workloads/eso-config/) — none in Git.
@@ -28,7 +30,7 @@ spec:
         # ship in the chart's crds/ directory, which ArgoCD applies directly.
         # (Trade-off: future chart upgrades may need a manual CRD re-apply.)
         upgradeCRDs: false
-        # AWS provider plugin (S3-compatible → R2).
+        # AWS provider plugin (native S3).
         initContainers:
           - name: velero-plugin-for-aws
             image: velero/velero-plugin-for-aws:v1.14.1
@@ -43,13 +45,10 @@ spec:
           backupStorageLocation:
             - name: default
               provider: aws
-              bucket: homelab-k8s-backups
+              bucket: 155125294186-homelab-k8s-backups
               default: true
               config:
-                region: auto                    # R2 uses "auto"
-                s3Url: https://cc034994f032b047ae910ab0ec21a075.r2.cloudflarestorage.com
-                s3ForcePathStyle: "true"
-                checksumAlgorithm: ""           # REQUIRED for R2 (disables CRC checksums)
+                region: us-east-1
         # We use File System Backup, not volume snapshots → no snapshot location.
         snapshotsEnabled: false
         deployNodeAgent: true                   # node-agent daemonset for kopia FSB
