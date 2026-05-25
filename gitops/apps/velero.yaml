@@ -23,12 +23,11 @@ spec:
     targetRevision: 12.0.1
     helm:
       valuesObject:
-        # Pin the CRD-install hook's kubectl helper to an explicit, existing tag
-        # (avoids any auto-derived tag that might 404 against registry.k8s.io).
-        kubectl:
-          image:
-            repository: registry.k8s.io/kubectl
-            tag: v1.36.0
+        # Disable the chart's upgrade-only CRD hook job: it pulls a now-dead
+        # bitnamilegacy/kubectl image and blocks the sync. The 13 Velero CRDs
+        # ship in the chart's crds/ directory, which ArgoCD applies directly.
+        # (Trade-off: future chart upgrades may need a manual CRD re-apply.)
+        upgradeCRDs: false
         # AWS provider plugin (S3-compatible → R2).
         initContainers:
           - name: velero-plugin-for-aws
