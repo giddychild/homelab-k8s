@@ -14,7 +14,7 @@ metadata:
   name: hello
   namespace: demo
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: hello
