@@ -186,8 +186,10 @@ Deployed via GitOps — ArgoCD `Application`s committed under `gitops/apps/`.
   (Prometheus 20Gi, Grafana 5Gi, Alertmanager 2Gi). Grafana at `grafana.192.168.216.230.nip.io`
   + CA TLS. `ServerSideApply=true` handled the large operator CRDs. App: `gitops/apps/kube-prometheus-stack.yaml`.
   Login: creds come from a hand-created secret `grafana-admin` (`grafana.admin.existingSecret`) — chart's random-per-sync password caused login failures, so we pinned it via an out-of-band secret + `grafana cli admin reset-admin-password`. (Password kept OUT of the public repo.)
-- [~] **Step 2 — Loki + Promtail**: Loki **SingleBinary** (chart `7.0.0`, filesystem on Longhorn 10Gi, 7-day retention) + Promtail DaemonSet (chart `6.17.1`, tolerates all taints → every node) → ns `monitoring`. Loki auto-registered as a Grafana datasource via a sidecar ConfigMap (loki `extraObjects`). Multi-source Apps `gitops/apps/{loki,promtail}.yaml`, values `kubernetes/bootstrap/{loki,promtail}/values.yaml`.
-- [ ] **Step 3 — Dashboards, alert rules, node monitoring review.**
+- [x] **Step 2 — Loki + Promtail** ✅: SingleBinary Loki (chart `7.0.0`, filesystem on Longhorn 10Gi, 7-day retention) + Promtail DaemonSet (chart `6.17.1`, all nodes) → ns `monitoring`. Logs flowing — verified in Grafana **Explore** (`{namespace="argocd"}` ~5.65K lines). Loki auto-wired as a Grafana datasource via sidecar ConfigMap. Multi-source Apps `gitops/apps/{loki,promtail}.yaml`.
+- [x] **Step 3 — Dashboards & alerts** (inline): kube-prometheus-stack ships dozens of Grafana dashboards + default `PrometheusRule` alert rules + Alertmanager (all running). Alertmanager **notification routing** (email/Slack/Discord) deferred until a channel is chosen — candidate: route alerts through n8n in Phase 8.
+
+**PHASE 7 COMPLETE** ✅ — metrics (Prometheus/Grafana), logs (Loki/Promtail), dashboards & alerting, all GitOps-managed.
 - [ ] **Step 5 — Namespaces, RBAC, Pod Security Standards.**
 
 ---
