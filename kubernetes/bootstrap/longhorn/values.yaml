@@ -9,6 +9,9 @@ defaultSettings:
   defaultDataPath: /var/lib/longhorn
   # 3 workers → one replica per worker for fault tolerance.
   defaultReplicaCount: 3
+  # Worker disks are thin VMDKs on the 1.1 TB datastore, so allow scheduling beyond
+  # the per-disk size — the default 100% + 30% reserved left too little schedulable room.
+  storageOverProvisioningPercentage: 200
 
 persistence:
   # Make "longhorn" the cluster's default StorageClass.

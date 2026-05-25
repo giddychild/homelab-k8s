@@ -203,6 +203,8 @@ Proceeding on 100 Mbps — deploy the stack now, pull only small models until gi
 - [x] **Step 1 — Ollama deployed** (chart `1.57.0`, app `0.24.0`): pod Running, CPU inference, models on Longhorn (30Gi). Validate: `kubectl -n ai-ops exec deploy/ollama -- ollama pull llama3.2:1b`. `gitops/apps/ollama.yaml`.
 - [x] **Step 2 — Open WebUI deployed** (chart `14.6.0`): pods Running (+ pipelines, redis). Chat at `chat.192.168.216.230.nip.io` + CA TLS, pointed at Ollama. `gitops/apps/open-webui.yaml`.
 - [~] **Step 3 — n8n** via manifests (`gitops/workloads/n8n/`, App `gitops/apps/n8n.yaml`): SQLite on Longhorn 5Gi, ingress `n8n.192.168.216.230.nip.io` + CA TLS, `N8N_SECURE_COOKIE=false`. Image `:latest` (pin after first deploy).
+
+  **⚠️ Longhorn capacity gotcha (runbook-worthy):** n8n's volume went `faulted` (0 replicas scheduled) and open-webui's went `degraded`. Root cause was NOT disk-full — workers had ~94 Gi free — but Longhorn reserves ~30% per disk, so the *schedulable* ceiling was ~69 Gi and we'd hit it (8 vols × 3 replicas). Fixes: (1) Ollama models → **1 replica** (re-downloadable) via `kubectl -n longhorn-system patch volume <id> -p '{"spec":{"numberOfReplicas":1}}'`; (2) raised `storageOverProvisioningPercentage` 100→**200** (worker disks are thin VMDKs on the 1.1 TB datastore). Then recreated the faulted PVC (scale deploy to 0 first — a pod reference keeps a `Terminating` PVC alive under GitOps).
 - [ ] **Step 4 — AI ops agents**: n8n workflows using Prometheus/Loki/k8s + Ollama (incident summary, troubleshooting, remediation).
 
 ---
