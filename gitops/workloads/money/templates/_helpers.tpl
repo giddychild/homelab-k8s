@@ -64,6 +64,14 @@ app.kubernetes.io/component: {{ .component }}
     secretKeyRef:
       name: {{ .Values.externalSecrets.targetSecretName }}
       key: jwt_public_key
+# Optional: present only once credential_key is provisioned in Vault and
+# externalSecrets.credentialKey is enabled. optional=true so pods start without it.
+- name: CREDENTIAL_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.externalSecrets.targetSecretName }}
+      key: credential_key
+      optional: true
 - name: OLLAMA_URL
   value: {{ .Values.ai.ollamaUrl | quote }}
 - name: EXTERNAL_AI_ENABLED
