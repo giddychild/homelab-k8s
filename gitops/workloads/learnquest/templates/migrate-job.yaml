@@ -1,0 +1,19 @@
+# Alembic migrations as an ArgoCD PreSync hook (runs before the app rolls out).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "learnquest.name" . }}-migrate
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets: [{ name: {{ .Values.image.pullSecret }} }]
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.registry }}/{{ .Values.image.api }}:{{ .Values.image.tag }}"
+          command: ["alembic", "upgrade", "head"]
+          env: {{- include "learnquest.appEnv" . | nindent 12 }}

@@ -1,0 +1,27 @@
+# apps-prod overrides. Image tags bumped by CI / ArgoCD Image Updater.
+image:
+  tag: "0.1.0"
+
+postgres:
+  backup:
+    enabled: false   # P0: off. Enable with S3 creds (Velero covers PG via WAL later).
+
+ingress:
+  host: learn.apps.giddyland.net
+  clusterIssuer: letsencrypt-prod
+
+externalSecret:
+  vaultPath: learnquest/app
+  secretName: learnquest-secrets
+
+# P0 ships API-first — no Next.js shell yet. Ingress routes everything to the API
+# so /api/healthz is reachable with a real LE cert. Web turns on in P1.
+web:
+  enabled: false
+
+# P0 hardening deferred (mirror money's first deploy): tighten after the loop works.
+networkPolicy:
+  enabled: false
+monitoring:
+  serviceMonitor:
+    enabled: false
