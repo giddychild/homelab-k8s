@@ -43,10 +43,13 @@ notifications:
             {"content": "🔴 ArgoCD **{{.app.metadata.name}}** — sync `{{.app.status.sync.status}}`, health `{{.app.status.health.status}}`\n{{if .app.status.operationState}}{{.app.status.operationState.message}}{{end}}"}
   triggers:
     trigger.on-problem: |
-      - when: app.status.operationState.phase in ['Error', 'Failed']
+      - when: app.status.operationState != nil and app.status.operationState.phase in ['Error', 'Failed']
         oncePer: app.status.operationState.syncResult.revision
         send: [app-problem]
       - when: app.status.health.status == 'Degraded'
+        oncePer: app.status.sync.revision
+        send: [app-problem]
+      - when: app.status.sync.status == 'Unknown'
         oncePer: app.status.sync.revision
         send: [app-problem]
   subscriptions:
