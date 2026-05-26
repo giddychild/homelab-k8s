@@ -70,6 +70,9 @@ externalSecrets:
   # Keys expected in Vault under this path.
   vaultPath: "apps/money"
   targetSecretName: money-secrets
+  # Pull a Fernet `credential_key` for encrypting saved bill logins. Enable only
+  # once that property exists in Vault (else ESO errors on the missing key).
+  credentialKey: false
 
 # CloudNativePG cluster.
 postgres:
