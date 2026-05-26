@@ -69,5 +69,5 @@ app.kubernetes.io/component: {{ .component }}
 - name: EXTERNAL_AI_ENABLED
   value: {{ .Values.ai.externalAiEnabled | quote }}
 - name: BASE_CURRENCY
-  value: "GBP"
+  value: "USD"
 {{- end -}}
