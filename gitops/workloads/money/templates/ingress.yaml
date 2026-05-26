@@ -1,0 +1,38 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "money.fullname" . }}
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer }}
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # SSE needs buffering off so /ai/chat/stream streams promptly.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tlsSecretName }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          # API + BFF proxy live behind the web app; route /api/v1 straight to the API.
+          - path: /api/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "money.api.fullname" . }}
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "money.web.fullname" . }}
+                port:
+                  number: 80
+{{- end }}

@@ -1,0 +1,27 @@
+# apps-prod — applied to ALL nodes at `talosctl gen config` time (--config-patch).
+# Secret-free — safe to commit. Mirrors homelab-prod/talos/patches/all.yaml.
+#
+# NOTE on CIDRs: apps-prod reuses 10.244.0.0/16 (pods) and 10.96.0.0/12 (svc).
+# That's fine because the two clusters are ISOLATED (no Cilium ClusterMesh) —
+# cross-cluster traffic (to Vault/Ollama) goes over the LAN by IP, not pod net.
+machine:
+  install:
+    # First SCSI disk = the 50 GB OS disk (workers' 80 GB Longhorn disk is /dev/sdb).
+    # Verify on a node before applying:  talosctl get disks --insecure -n <maintenance-ip>
+    disk: /dev/sda
+  network:
+    nameservers:
+      - 192.168.216.1
+      - 1.1.1.1
+cluster:
+  network:
+    podSubnets:
+      - 10.244.0.0/16
+    serviceSubnets:
+      - 10.96.0.0/12
+    # Cilium installed manually in Phase A; disable Talos's default CNI...
+    cni:
+      name: none
+  # ...and disable kube-proxy — Cilium replaces it (eBPF).
+  proxy:
+    disabled: true

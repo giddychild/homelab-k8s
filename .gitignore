@@ -2,11 +2,16 @@
 # NOTE: .gitignore does NOT support inline (end-of-line) comments — every comment
 # must be on its own line, or it becomes part of the pattern. Keep it that way.
 
-# Talos cluster credentials & kube access
+# Talos cluster credentials & kube access (homelab-prod)
 talos/talosconfig
 talos/secrets.yaml
 talos/controlplane.yaml
 talos/worker.yaml
+# Talos cluster credentials & kube access (apps-prod)
+talos-apps/talosconfig
+talos-apps/secrets.yaml
+talos-apps/controlplane.yaml
+talos-apps/worker.yaml
 **/kubeconfig
 **/*.kubeconfig
 # age private keys (decrypt SOPS secrets)

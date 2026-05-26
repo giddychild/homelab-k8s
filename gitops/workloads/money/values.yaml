@@ -1,0 +1,104 @@
+# Default values for the money chart. Overridden per-environment by
+# values-homelab.yaml on the apps cluster.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  registry: ghcr.io
+  pullPolicy: IfNotPresent
+  pullSecrets:
+    - name: ghcr-pull
+  api:
+    repository: ghcr.io/giddychild/money-api
+    tag: "latest" # bumped to :<sha> by the release workflow
+  web:
+    repository: ghcr.io/giddychild/money-web
+    tag: "latest"
+
+api:
+  replicas: 2
+  port: 8000
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+web:
+  replicas: 2
+  port: 3000
+  resources:
+    requests:
+      cpu: 25m
+      memory: 96Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+worker:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Optional, local-only AI. Reached over the LAN/cluster; app works if it's down.
+ai:
+  ollamaUrl: "http://ollama.ai-ops.svc.cluster.local:11434"
+  externalAiEnabled: false
+
+ingress:
+  enabled: true
+  className: nginx
+  host: money.apps.giddyland.net
+  clusterIssuer: letsencrypt-prod
+  tlsSecretName: money-tls
+
+# External Secrets Operator: pulls from Vault via a ClusterSecretStore.
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  refreshInterval: "1h"
+  # Keys expected in Vault under this path.
+  vaultPath: "apps/money"
+  targetSecretName: money-secrets
+
+# CloudNativePG cluster.
+postgres:
+  instances: 2
+  image: ghcr.io/cloudnative-pg/postgresql:16-bookworm-pgvector
+  storage:
+    size: 10Gi
+    storageClass: longhorn-r2
+  database: money
+  owner: money
+  backup:
+    enabled: true
+    destinationPath: "s3://money-pg-backups/"
+    endpointURL: "https://s3.giddyland.net"
+    s3CredentialsSecret: money-pg-backup-s3
+
+redis:
+  image: redis:7-alpine
+  storage:
+    size: 2Gi
+    storageClass: longhorn-r1
+  port: 6379
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+networkPolicy:
+  enabled: true
+  # CIDR/identity for the Ollama host on the LAN (egress allow).
+  ollamaCidr: "10.0.20.0/24"

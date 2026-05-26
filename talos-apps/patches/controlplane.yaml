@@ -1,0 +1,56 @@
+# apps-prod — CONTROL-PLANE nodes only (--config-patch-control-plane at gen time).
+# Same security-focused kube-apiserver audit policy as homelab-prod, for parity.
+# Secrets/ConfigMaps logged at METADATA only (values never land in the audit log).
+# Secret-free — safe to commit.
+cluster:
+  apiServer:
+    auditPolicy:
+      apiVersion: audit.k8s.io/v1
+      kind: Policy
+      omitStages:
+        - RequestReceived
+      rules:
+        # 1) Drop high-volume, low-value control-plane chatter.
+        - level: None
+          users:
+            - system:apiserver
+            - system:kube-scheduler
+            - system:kube-controller-manager
+        - level: None
+          userGroups: ["system:nodes"]
+          verbs: ["get", "list", "watch"]
+        - level: None
+          nonResourceURLs:
+            - /healthz*
+            - /readyz*
+            - /livez*
+            - /version
+            - /metrics
+            - /openapi/*
+        - level: None
+          verbs: ["get", "list", "watch"]
+          resources:
+            - group: ""
+              resources: ["events", "endpoints"]
+            - group: coordination.k8s.io
+              resources: ["leases"]
+            - group: discovery.k8s.io
+              resources: ["endpointslices"]
+        # 2) Sensitive material: METADATA only.
+        - level: Metadata
+          resources:
+            - group: ""
+              resources: ["secrets", "configmaps"]
+            - group: authentication.k8s.io
+              resources: ["tokenreviews"]
+        # 3) RBAC changes: full request + response.
+        - level: RequestResponse
+          verbs: ["create", "update", "patch", "delete"]
+          resources:
+            - group: rbac.authorization.k8s.io
+              resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+        # 4) All other mutating operations: log the request body.
+        - level: Request
+          verbs: ["create", "update", "patch", "delete", "deletecollection"]
+        # 5) Everything else: metadata.
+        - level: Metadata

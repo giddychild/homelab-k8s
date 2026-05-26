@@ -1,0 +1,10 @@
+# ingress-nginx Helm values for apps-prod.
+controller:
+  # 2 replicas across the 2 workers.
+  replicaCount: 2
+  service:
+    type: LoadBalancer
+    annotations:
+      # Pin ingress to a stable LAN IP from the apps Cilium pool (.221-.229),
+      # so money.apps.giddyland.net DNS can point at it.
+      io.cilium/lb-ipam-ips: "192.168.216.221"

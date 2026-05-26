@@ -1,0 +1,17 @@
+# Longhorn Helm values for apps-prod.
+#
+# Differs from homelab-prod in ONE way: this cluster has 2 workers (not 3),
+# so the default replica count is 2 (a 3-replica default would leave every
+# volume permanently Degraded). Per-workload StorageClasses (longhorn-r1 for
+# re-creatable data, longhorn-r2 for durable) are defined in storageclasses.yaml.
+defaultSettings:
+  defaultDataPath: /var/lib/longhorn
+  # 2 workers -> 2 replicas max.
+  defaultReplicaCount: 2
+  # Thin VMDKs on the shared datastore; allow scheduling beyond per-disk size.
+  storageOverProvisioningPercentage: 200
+
+persistence:
+  # Make "longhorn" the default StorageClass (2 replicas).
+  defaultClass: true
+  defaultClassReplicaCount: 2

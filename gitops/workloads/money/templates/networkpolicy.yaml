@@ -1,0 +1,94 @@
+{{- if .Values.networkPolicy.enabled }}
+# Default-deny for all money pods; explicit allows below.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "money.fullname" . }}-default-deny
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  ingress: []
+  egress:
+    # Allow DNS to kube-dns for every pod.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+# web -> api
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "money.fullname" . }}-web-to-api
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: api
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: web
+      toPorts:
+        - ports:
+            - port: "{{ .Values.api.port }}"
+              protocol: TCP
+---
+# api + worker -> postgres + redis
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "money.fullname" . }}-app-to-data
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values: ["api", "worker"]
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "money.pg.fullname" . }}
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: redis
+      toPorts:
+        - ports:
+            - port: "{{ .Values.redis.port }}"
+              protocol: TCP
+---
+# worker -> Ollama on the LAN (egress to CIDR) for optional AI.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "money.fullname" . }}-worker-to-ollama
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: worker
+  egress:
+    - toCIDR:
+        - {{ .Values.networkPolicy.ollamaCidr }}
+      toPorts:
+        - ports:
+            - port: "11434"
+              protocol: TCP
+{{- end }}

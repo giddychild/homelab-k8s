@@ -1,0 +1,40 @@
+# Let's Encrypt ClusterIssuers for apps-prod — public-trusted certs via ACME DNS-01
+# (Cloudflare), same pattern as homelab-prod. No inbound exposure.
+#
+# The Cloudflare API token lives in Secret `cloudflare-api-token` (cert-manager ns),
+# delivered by ESO from the homelab Vault (cross-cluster AppRole). Apply these
+# AFTER ESO has materialized that secret. Validate with STAGING before prod.
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: seyi.obadee@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-staging-account
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: seyi.obadee@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-account
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
