@@ -1,6 +1,6 @@
 # Architecture
 
-## Target topology
+## Topology (as-built)
 
 ```
                           HOME NETWORK (Orbi mesh)
@@ -11,7 +11,7 @@
                     └──────────────┬───────────────┘
                                    │
                     ┌──────────────┴───────────────┐
-                    │  Managed gigabit switch (NEW)  │  (replaces FS105 10/100)
+                    │  Managed gigabit switch        │  (replaced FS105 10/100)
                     │  TL-SG108E / GS308E, 802.1Q    │
                     └──────────────┬───────────────┘
                                    │ 1 GbE uplink (vmnic0)

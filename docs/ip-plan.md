@@ -16,11 +16,13 @@
 | Orbi Satellite-1 / -2 | `192.168.216.19` / `.22` | existing |
 | ESXi host (vmk0) | `192.168.216.216` | existing — do not change |
 | `mgmt-jump` VM | `192.168.216.30` | ✅ Orbi reservation (inside pool — fine) |
-| **Orbi DHCP pool** | `192.168.216.2 – .199` | ⚠️ change END `.254 → .199` |
+| **Orbi DHCP pool** | `192.168.216.2 – .199` | ✅ END capped at `.199` |
 | **Talos API VIP** | `192.168.216.200` | floating `kubectl` endpoint |
 | `talos-cp-01 / 02 / 03` | `192.168.216.201 / .202 / .203` | static (Talos config) |
 | `talos-wk-01 / 02 / 03` | `192.168.216.211 / .212 / .213` | static (Talos config) |
 | **Cilium LoadBalancer pool** | `192.168.216.230 – .250` | Services / Ingress |
+
+> **Public DNS (as-built):** a Cloudflare wildcard `A *.apps.giddyland.net → 192.168.216.230` (DNS-only, never proxied) resolves all service hostnames to the ingress LB. Public DNS → private IP, so certs are publicly-trusted (Let's Encrypt via DNS-01) but the services are reachable only on the LAN/Tailscale.
 
 ## Internal (Kubernetes-only) ranges
 
