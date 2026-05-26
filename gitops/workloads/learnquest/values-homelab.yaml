@@ -14,10 +14,10 @@ externalSecret:
   vaultPath: learnquest/app
   secretName: learnquest-secrets
 
-# P0 ships API-first — no Next.js shell yet. Ingress routes everything to the API
-# so /api/healthz is reachable with a real LE cert. Web turns on in P1.
+# P1: the installable PWA web shell exists (iPad home-screen icon). Web is ON;
+# ingress routes / -> web and /api -> api. Requires the web image in GHCR.
 web:
-  enabled: false
+  enabled: true
 
 # P0 hardening deferred (mirror money's first deploy): tighten after the loop works.
 networkPolicy:
