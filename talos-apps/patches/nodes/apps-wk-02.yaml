@@ -1,0 +1,23 @@
+# apps-prod — worker: static IP (no VIP), Longhorn data disk, hostname.
+# See apps-wk-01.yaml for notes on install.image (Image Factory schematic).
+machine:
+  install:
+    image: factory.talos.dev/installer/613e1592b2da41ae5e265e8789429f22e121aab91cb4deb6bc3c0b6262961245:v1.13.2
+  network:
+    interfaces:
+      - deviceSelector:
+          driver: vmxnet3
+        dhcp: false
+        addresses:
+          - 192.168.216.207/24
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.216.1
+  disks:
+    - device: /dev/sdb
+      partitions:
+        - mountpoint: /var/lib/longhorn
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+hostname: apps-wk-02

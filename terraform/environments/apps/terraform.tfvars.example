@@ -1,0 +1,27 @@
+# Copy to terraform.tfvars (gitignored) and fill in. Pick ONE connection style.
+#
+# ── Option A: via vCenter (.217) — RECOMMENDED now that vCenter exists ────────
+# Avoids host/vCenter inventory drift; production-correct. You must supply the
+# real datacenter name and host name as they appear in the vCenter inventory
+# (vSphere Client → Hosts and Clusters). Example values shown — VERIFY yours.
+#
+# vsphere_server     = "192.168.216.217"
+# vsphere_user       = "administrator@vsphere.local"
+# vsphere_password   = "REDACTED"
+# vsphere_datacenter = "Datacenter"                              # <- real DC name in vCenter
+# vsphere_host_name  = "localhost.network.techvitality.com"     # <- host name in inventory
+#
+# ── Option B: direct to the ESXi host (what homelab-prod used) ────────────────
+# Zero rework, proven. Leave vsphere_host_name = "" (single implicit host).
+# Note: creating VMs directly on a vCenter-managed host may show drift in vCenter.
+#
+# vsphere_server     = "192.168.216.30-ish (the ESXi host IP)"
+# vsphere_user       = "root"
+# vsphere_password   = "REDACTED"
+# vsphere_datacenter = "ha-datacenter"
+# vsphere_host_name  = ""
+
+# Shared defaults (usually no need to override):
+# vsphere_datastore = "datastore1"
+# vsphere_network   = "VM Network"
+# talos_iso_path    = "ISOs/talos/metal-amd64.iso"

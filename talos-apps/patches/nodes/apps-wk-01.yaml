@@ -1,0 +1,28 @@
+# apps-prod — worker: static IP (no VIP), Longhorn data disk, hostname.
+#
+# install.image pins the Image Factory installer that bundles iscsi-tools +
+# util-linux-tools, so the node installs WITH Longhorn's deps from first boot
+# (cleaner than the post-install `talosctl upgrade` route homelab-prod took).
+# The schematic id below is the SAME one used by homelab-prod (see talos-apps/schematic.yaml).
+machine:
+  install:
+    image: factory.talos.dev/installer/613e1592b2da41ae5e265e8789429f22e121aab91cb4deb6bc3c0b6262961245:v1.13.2
+  network:
+    interfaces:
+      - deviceSelector:
+          driver: vmxnet3
+        dhcp: false
+        addresses:
+          - 192.168.216.206/24
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.216.1
+  # Dedicated Longhorn data disk: partition + format + mount /dev/sdb (80 GB).
+  disks:
+    - device: /dev/sdb
+      partitions:
+        - mountpoint: /var/lib/longhorn
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+hostname: apps-wk-01

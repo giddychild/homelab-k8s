@@ -1,0 +1,20 @@
+# apps-prod — control-plane: static IP + shared VIP (v1alpha1).
+# Hostname via HostnameConfig; the base doc's `auto: stable` is stripped by
+# scripts/talos-gen-apps.sh so this merges cleanly.
+machine:
+  network:
+    interfaces:
+      - deviceSelector:
+          driver: vmxnet3
+        dhcp: false
+        addresses:
+          - 192.168.216.205/24
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.216.1
+        vip:
+          ip: 192.168.216.204
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+hostname: apps-cp-01
