@@ -26,6 +26,13 @@ spec:
           limits:
             cpu: "8"
             memory: 16Gi
+        # Expose Ollama on a LAN LoadBalancer IP (Cilium LB-IPAM pool
+        # 192.168.216.230-250) so the money app on the apps-prod cluster can
+        # reach it cross-cluster over the LAN. LAN-only (not internet-routable).
+        service:
+          type: LoadBalancer
+          annotations:
+            io.cilium/lb-ipam-ips: "192.168.216.240"
   destination:
     server: https://kubernetes.default.svc
     namespace: ai-ops
