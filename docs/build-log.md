@@ -131,7 +131,7 @@ comes in Phase 5) and kube-proxy disabled (Cilium replaces it with eBPF).
 
 ---
 
-## Phase 5 — Kubernetes Platform Services  🟡 IN PROGRESS  (2026-05-24)
+## Phase 5 — Kubernetes Platform Services  ✅ COMPLETE  (2026-05-25)
 
 Cluster is up (k8s **v1.36.0**, 6 nodes `NotReady` — no CNI). Bringing it online and
 layering on platform services.
@@ -161,7 +161,7 @@ layering on platform services.
 
 ---
 
-## Phase 6 — GitOps (ArgoCD)  🟡 IN PROGRESS  (2026-05-25)
+## Phase 6 — GitOps (ArgoCD)  ✅ COMPLETE  (2026-05-25)
 
 ArgoCD watches the repo's `gitops/` tree and reconciles the cluster to match it
 (app-of-apps pattern). Bootstrap components (Cilium, Longhorn, ingress, cert-manager)
@@ -176,7 +176,7 @@ stay Helm-installed; ArgoCD manages everything layered on top.
 
 ---
 
-## Phase 7 — Observability  🟡 IN PROGRESS  (2026-05-25)
+## Phase 7 — Observability  ✅ COMPLETE  (2026-05-25)
 
 Deployed via GitOps — ArgoCD `Application`s committed under `gitops/apps/`.
 
@@ -194,7 +194,7 @@ Deployed via GitOps — ArgoCD `Application`s committed under `gitops/apps/`.
 
 ---
 
-## Phase 8 — AI Ops  🟡 IN PROGRESS  (2026-05-25)
+## Phase 8 — AI Ops  ✅ COMPLETE  (2026-05-25)
 
 Local AI platform, deployed via GitOps into namespace `ai-ops` (PSS `baseline`).
 Proceeding on 100 Mbps — deploy the stack now, pull only small models until gigabit.
@@ -314,31 +314,88 @@ terraform apply   # typed 'yes' -> 6 Talos VMs created
 
 ## Appendix B — Key facts & endpoints
 
+### Infrastructure
 | Thing | Value |
 |---|---|
 | ESXi host | `192.168.216.216` |
 | Gateway (Orbi RBR850) | `192.168.216.1` |
-| Subnet | `192.168.216.0/24` |
-| Datastore | `datastore1` (2.6 TB HDD, ~1.1 TB free) |
-| Ubuntu ISO | `[datastore1] ISOs/linux/ubuntu/ubuntu-24.04.4-live-server-amd64.iso` |
-| Talos ISO | `[datastore1] ISOs/talos/metal-amd64.iso` (Talos v1.13.2, 318 MB) |
+| Subnet | `192.168.216.0/24` (flat; gigabit switch installed 2026-05-25) |
+| Datastore | `datastore1` (2.6 TB HDD, ~1.1 TB free) — single spinning disk = platform bottleneck (SSD is the planned upgrade; see ADR-0002) |
 | Git repo | https://github.com/giddychild/homelab-k8s |
-| `mgmt-jump` IP | `192.168.216.30` (Orbi reservation, MAC `00:0c:29:7b:49:ed`) |
-| `mgmt-jump` MAC / NIC / user | `00:0c:29:7b:49:ed` / `ens160` (VMXNET3) / `seyi` |
-| Talos API VIP (**actual**) | `192.168.216.200:6443` |
-| Control plane (**actual**) | `talos-cp-01/02/03` = `192.168.216.201–203` |
-| Workers (**actual**) | `talos-wk-01/02/03` = `192.168.216.211–213` |
-| Cilium LB pool (**actual**) | `192.168.216.230–250` (ingress on `.230`) |
-| Cluster k8s version | `v1.36.0` on Talos `v1.13.2` |
+| `mgmt-jump` | `192.168.216.30` (Orbi reservation, MAC `00:0c:29:7b:49:ed`, NIC `ens160`/VMXNET3, user `seyi`) — holds `talosctl` + `talosconfig` + admin `kubectl` |
+| Talos API VIP | `192.168.216.200:6443` |
+| Control plane | `talos-cp-01/02/03` = `.201–.203` |
+| Workers | `talos-wk-01/02/03` = `.211–.213` (Image Factory schematic `613e1592…2961245` adds iscsi-tools/util-linux for Longhorn) |
+| Cilium LB pool | `.230–.250` (ingress-nginx on `.230`) |
+| Versions | Kubernetes `v1.36.0` on Talos `v1.13.2`; ArgoCD chart `argo-cd-9.5.15` (app v3.4.2) |
+| Laptop kubectl | context `admin@homelab-prod` (→ VIP `.200`) and `tailscale-operator.tail92e284.ts.net` (over tailnet) |
+
+### Domain, DNS & TLS
+| Thing | Value |
+|---|---|
+| Domain | `giddyland.net` (Cloudflare zone) |
+| Service DNS | wildcard `A *.apps.giddyland.net` → `192.168.216.230` (**DNS-only / grey-cloud**, never proxied) — public DNS → private IP, reachable only on LAN/Tailscale |
+| Certs | Let's Encrypt via cert-manager ACME **DNS-01** (Cloudflare); ClusterIssuers `letsencrypt-staging` / `letsencrypt-prod`. Internal `homelab-ca` issuer retained for internal-only use. Per-ingress annotation `cert-manager.io/cluster-issuer: letsencrypt-prod`. |
+| Remote access | Tailscale operator (device `tailscale-operator` `100.110.187.6`, `tag:k8s-operator`); API-server proxy at `tailscale-operator.tail92e284.ts.net`; needs HTTPS Certificates enabled in the tailnet |
+
+### Service URLs (publicly-trusted HTTPS, LAN/Tailscale-only)
+| Service | URL |
+|---|---|
+| Grafana | `https://grafana.apps.giddyland.net` (creds in `secret/grafana`; Deployment strategy Recreate) |
+| ArgoCD | `https://argocd.apps.giddyland.net` (admin pw: `argocd-initial-admin-secret`) |
+| Vault | `https://vault.apps.giddyland.net` (login = root token, out-of-band) |
+| Open WebUI | `https://chat.apps.giddyland.net` |
+| n8n | `https://n8n.apps.giddyland.net` |
+| hello (demo) | `https://hello.apps.giddyland.net` |
+
+### Backups / DR (→ AWS S3)
+| Thing | Value |
+|---|---|
+| S3 bucket | `155125294186-homelab-k8s-backups` (`us-east-1`) |
+| Velero | chart `12.0.1` (Velero 1.18.0) + plugin `v1.14.1`; prefix `velero/`; node-agent kopia **FSB**; Schedule `velero-daily` 03:00, **ttl 72h** |
+| etcd snapshots | CronJob `talos-etcd-snapshot` daily 02:00 → `s3://…/etcd-snapshots/` (least-priv `os:etcd:backup` talosconfig) |
+
+### Vault secrets (KV v2 mount `secret/`)
+| Path | Fields | Consumer (via ESO → Secret) |
+|---|---|---|
+| `secret/grafana` | admin-user, admin-password | Grafana (`grafana-admin`) |
+| `secret/velero` | access_key_id, secret_access_key | Velero S3 (`velero-credentials`, key `cloud`) |
+| `secret/cloudflare-dns` | api_token | cert-manager DNS-01 (`cloudflare-api-token`) |
+| `secret/tailscale` | client_id, client_secret | Tailscale operator (`operator-oauth`) |
+| `secret/talos-etcd-backup` | talosconfig | etcd CronJob (`talos-etcd-backup`) |
+| `secret/alert-webhook` | discord_url | Alertmanager + ArgoCD notifications |
+| **Vault root token + unseal key** | — | **saved OUT-OF-BAND, not in cluster**; re-unseal (`vault operator unseal`) after any Vault pod restart |
+
+### Alerting → Discord
+| Path | Catches |
+|---|---|
+| Alertmanager → Discord (`AlertmanagerConfig` CRD, `discordConfigs.apiURL` secret-ref) | `warning`/`critical` cluster + workload alerts; critical also → n8n AI summary |
+| ArgoCD Notifications → Discord (`on-problem` trigger) | sync Error/Failed, health Degraded, sync Unknown |
+
+### Runbooks (`docs/runbooks/`)
+- `audit-logging.md` — apply/verify the kube-apiserver audit policy (rolling, from mgmt-jump)
+- `disaster-recovery.md` — 3 recovery scenarios (namespace restore, full rebuild, etcd restore) + schedules + gotchas
+- `talos-kubernetes-upgrades.md` — rolling Talos + Kubernetes upgrades (workers need the schematic installer image)
+
+### ADRs (`docs/decisions/`)
+- `0001` — replace 10/100 switch with a managed gigabit switch
+- `0002` — stay on Longhorn over OpenEBS (single HDD is the bottleneck)
 
 ---
 
 ## Appendix C — Pending / deferred items
 
-- [ ] Install gigabit switch + confirm `vmnic0 = 1000 Mbps` (reminder set for 2026-05-25).
-- [x] Uploaded Talos `metal-amd64.iso` to `[datastore1] ISOs/talos/` (318 MB).
-- [ ] Cap Orbi DHCP at `.199` (END `.254 → .199`) so cluster statics `.200+` are free.
-- [x] Reserved `192.168.216.30` for `mgmt-jump` in Orbi (MAC `00:0c:29:7b:49:ed`).
-- [ ] (Optional, future) Consider an SSD for etcd; managed-switch enables a future pfSense/OPNsense VLAN router.
-- [ ] (Security, Phase 9) Replace plaintext PAT storage with SSH keys / short-lived creds.
-```
+**Done**
+- [x] Uploaded Talos `metal-amd64.iso` to `[datastore1] ISOs/talos/`.
+- [x] Reserved `192.168.216.30` for `mgmt-jump` in Orbi.
+- [x] Capped Orbi DHCP at `.199` (cluster statics `.200+` free).
+- [x] Installed managed gigabit switch (2026-05-25) — replaced the FS105 10/100.
+
+**Open / future**
+- [ ] Confirm `vmnic0 = 1000 Mbps full duplex` in ESXi (Networking → Physical NICs → refresh) now that the switch is in.
+- [ ] SSD for etcd/Longhorn — the single HDD is the platform bottleneck (see ADR-0002).
+- [ ] Exclude Ollama's ~30 GiB re-downloadable model volume from Velero backups to cut S3 size.
+- [ ] Replace plaintext PAT in `~/.git-credentials` with SSH keys / short-lived creds.
+- [ ] (Optional) Narrow auto-remediation allow-list for the issue agent (re-sync failed app, restart CrashLooping pod, clear stuck job) via scoped RBAC — human-in-loop otherwise.
+- [ ] (Optional) S3 lifecycle: abort incomplete multipart uploads after 7d; a prefix-scoped expiry on `etcd-snapshots/` is safe — never expire the `velero/` kopia repo.
+- [ ] (Future) pfSense/OPNsense VLAN router VM (the managed switch now enables 802.1Q).
