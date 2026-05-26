@@ -7,6 +7,11 @@ kind: Application
 metadata:
   name: money
   namespace: argocd
+  annotations:
+    # Server-side diff accounts for apiserver/CRD-injected defaults (e.g. the
+    # ExternalSecret CRD adds remoteRef.conversionStrategy/decodingStrategy/etc.
+    # and target.deletionPolicy) so they don't show as false OutOfSync drift.
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
 spec:
   project: default
   source:
