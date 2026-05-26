@@ -1,0 +1,61 @@
+# Apps-cluster overrides for the homelab (Dell R730XD / ESXi).
+# Applied by ArgoCD on top of values.yaml.
+
+# Locally-built images pushed to GHCR (private; pulled via ghcr-pull secret).
+image:
+  api:
+    tag: "0.1.0"
+  web:
+    tag: "0.1.0"
+
+# Vault path aligned to the apps-prod AppRole policy (secret/data/money/*).
+# Secret lives at secret/money/app with properties:
+#   database_url, redis_url, jwt_private_key, jwt_public_key
+externalSecrets:
+  vaultPath: "money/app"
+
+api:
+  replicas: 2
+web:
+  replicas: 2
+worker:
+  replicas: 1
+
+ai:
+  # Ollama runs on the ai-ops node pool; reachable in-cluster.
+  ollamaUrl: "http://ollama.ai-ops.svc.cluster.local:11434"
+  externalAiEnabled: false
+
+ingress:
+  host: money.apps.giddyland.net
+  clusterIssuer: letsencrypt-prod
+
+postgres:
+  instances: 2
+  # CNPG "standard" flavor bundles pgvector (the scaffold's "16-bookworm-pgvector"
+  # tag does not exist). This floating tag tracks the latest 16.x standard image.
+  image: ghcr.io/cloudnative-pg/postgresql:16-standard-bookworm
+  storage:
+    storageClass: longhorn-r2
+    size: 20Gi
+  backup:
+    # Disabled for P0 — no S3 endpoint wired yet (s3.giddyland.net is a placeholder).
+    # Re-enable once a bucket + money-pg-backup-s3 credentials secret exist.
+    enabled: false
+
+redis:
+  storage:
+    storageClass: longhorn-r1
+
+# P0: the scaffolded CiliumNetworkPolicies have gaps (no ingress-nginx->web,
+# no api->redis ingress, migrate job excluded from Postgres egress). Disable for
+# the first bring-up; write correct default-deny policies in P1.
+networkPolicy:
+  enabled: false
+  ollamaCidr: "192.168.216.0/24"
+
+# apps-prod has no Prometheus operator yet, so the ServiceMonitor CRD is absent.
+# Disable until monitoring is added to apps-prod (or it's federated to homelab).
+monitoring:
+  serviceMonitor:
+    enabled: false

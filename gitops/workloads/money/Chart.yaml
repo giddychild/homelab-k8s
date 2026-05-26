@@ -1,0 +1,9 @@
+apiVersion: v2
+name: money
+description: Self-hosted AI personal-finance platform (api + web + worker + datastores)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: giddychild
+    email: seyi.obadee@gmail.com

@@ -1,0 +1,29 @@
+# Child Application — ArgoCD (homelab hub) deploys the money finance platform
+# to the apps-prod cluster (hub-and-spoke). Chart lives in this public repo
+# (secret-free); app secrets come from Vault via ESO. App source code is in the
+# private giddychild/finance-platform repo; images in GHCR (pulled via ghcr-pull).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: money
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/giddychild/homelab-k8s.git
+    targetRevision: main
+    path: gitops/workloads/money
+    helm:
+      valueFiles:
+        - values-homelab.yaml
+  destination:
+    # apps-prod cluster (registered in ArgoCD as a managed cluster).
+    server: https://192.168.216.204:6443
+    namespace: money
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true   # CNPG/large CRDs

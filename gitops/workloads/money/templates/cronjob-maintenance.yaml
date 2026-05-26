@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "money.fullname" . }}-maintenance
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  # Nightly at 02:30.
+  schedule: "30 2 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          {{- with .Values.image.pullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+          containers:
+            - name: maintenance
+              image: "{{ .Values.image.api.repository }}:{{ .Values.image.api.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              # Enqueues materialize_recurring + embed + forecast for all households.
+              # TODO: implement `python -m app.manage nightly` to enqueue these ARQ jobs.
+              command: ["python", "-m", "app.manage", "nightly"]
+              env:
+                {{- include "money.appEnv" . | nindent 16 }}

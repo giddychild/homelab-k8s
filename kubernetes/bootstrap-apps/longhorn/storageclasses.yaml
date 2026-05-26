@@ -1,0 +1,36 @@
+# Per-workload Longhorn StorageClasses for apps-prod (2 workers).
+#
+# - longhorn-r1: SINGLE replica. For re-creatable data (Redis, Ollama-style
+#   caches) where losing the volume is cheap. Saves disk on the single HDD.
+# - longhorn-r2: TWO replicas (one per worker). For durable data (PostgreSQL),
+#   backed additionally by CloudNativePG WAL->S3.
+#
+# The chart also creates the default "longhorn" class (2 replicas) — these are
+# explicit, named classes the money Helm chart references by name.
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-r1
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: "1"
+  staleReplicaTimeout: "30"
+  dataLocality: "best-effort"
+  fsType: "ext4"
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-r2
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: "2"
+  staleReplicaTimeout: "30"
+  fsType: "ext4"
