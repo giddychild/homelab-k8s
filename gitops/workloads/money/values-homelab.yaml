@@ -16,7 +16,7 @@ externalSecrets:
   # Flip to true AFTER adding a `credential_key` (Fernet) to Vault secret/money/app,
   # then ESO syncs it and saved bill logins (username/password) get encrypted.
   # Leave false until provisioned, or ESO errors on the missing Vault property.
-  credentialKey: false
+  credentialKey: true
 
 api:
   replicas: 2
