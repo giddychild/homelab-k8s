@@ -6,7 +6,7 @@ image:
   api:
     tag: "0.15.0"
   web:
-    tag: "0.15.1"
+    tag: "0.15.2"
 
 # Vault path aligned to the apps-prod AppRole policy (secret/data/money/*).
 # Secret lives at secret/money/app with properties:
@@ -27,7 +27,7 @@ worker:
 
 ai:
   # Ollama runs on the ai-ops node pool; reachable in-cluster.
-  ollamaUrl: "http://ollama.ai-ops.svc.cluster.local:11434"
+  ollamaUrl: "http://192.168.216.240:11434"
   externalAiEnabled: false
 
 ingress:
