@@ -77,7 +77,9 @@ kind: Backup
 metadata: { name: money-pg-manual-1, namespace: money }
 spec: { cluster: { name: money-pg } }
 EOF
-kubectl -n money get backup money-pg-manual-1 -w              # phase → completed
+# NB: use the FQ resource name — Longhorn also defines a "Backup" kind, so the
+# short name "backup" resolves to backups.longhorn.io, not CNPG's.
+kubectl -n money get backups.postgresql.cnpg.io money-pg-manual-1 -w   # phase → completed
 aws s3 ls s3://giddyland-money-pg-backups/ --recursive | head # base/ + wals/ appear
 ```
 
