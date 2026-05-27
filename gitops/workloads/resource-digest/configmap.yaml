@@ -49,6 +49,6 @@ data:
     content = "📊 Homelab cluster (Δ vs 15m): " + "  ·  ".join(parts)
 
     body = json.dumps({"content": content}).encode()
-    req = urllib.request.Request(DISCORD, data=body, headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(DISCORD, data=body, headers={"Content-Type": "application/json", "User-Agent": "homelab-resource-digest/1.0"})
     urllib.request.urlopen(req, timeout=20).read()
     print(content)
