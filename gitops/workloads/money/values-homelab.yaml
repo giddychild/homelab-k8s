@@ -80,7 +80,7 @@ demo:
 # Invite-only sign-up for the public deployment. Set adminEmails to YOUR money
 # login email (must match exactly) so you can generate/revoke invite codes.
 registrationMode: "invite"
-adminEmails: "seyi.obadee@gmail.com"
+adminEmails: "seyiobadina@yahoo.com"
 
 # Public exposure via Cloudflare Tunnel (token in Vault secret/money/cf-tunnel).
 cloudflare:
