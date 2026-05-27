@@ -88,6 +88,11 @@ postgres:
     destinationPath: "s3://money-pg-backups/"
     endpointURL: "https://s3.giddyland.net"
     s3CredentialsSecret: money-pg-backup-s3
+    # Vault path (KV v2) holding access_key_id / secret_access_key for the backup
+    # bucket's IAM user; ESO materializes it into s3CredentialsSecret.
+    s3CredentialsVaultPath: "money/backup-s3"
+    # CNPG 6-field cron (seconds first) — daily base backup at 03:30.
+    schedule: "0 30 3 * * *"
 
 redis:
   image: redis:7-alpine

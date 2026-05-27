@@ -4,9 +4,9 @@
 # Locally-built images pushed to GHCR (private; pulled via ghcr-pull secret).
 image:
   api:
-    tag: "0.18.3"
+    tag: "0.18.8"
   web:
-    tag: "0.18.7"
+    tag: "0.18.8"
 
 # Vault path aligned to the apps-prod AppRole policy (secret/data/money/*).
 # Secret lives at secret/money/app with properties:
@@ -43,9 +43,16 @@ postgres:
     storageClass: longhorn-r2
     size: 20Gi
   backup:
-    # Disabled for P0 — no S3 endpoint wired yet (s3.giddyland.net is a placeholder).
-    # Re-enable once a bucket + money-pg-backup-s3 credentials secret exist.
+    # CNPG Barman → AWS S3 (base backups + WAL archiving = point-in-time recovery).
+    # Flip to true AFTER the user-side steps in docs/runbooks/money-db-backups.md:
+    #   1. create a DEDICATED bucket (NOT the Velero bucket — sharing its root
+    #      breaks Velero's BSL) + a scoped IAM user
+    #   2. write access_key_id / secret_access_key to Vault secret/money/backup-s3
+    # Then ESO syncs money-pg-backup-s3 and CNPG starts archiving.
     enabled: false
+    destinationPath: "s3://giddyland-money-pg-backups/"
+    endpointURL: "https://s3.us-east-1.amazonaws.com"
+    s3CredentialsVaultPath: "money/backup-s3"
 
 redis:
   storage:
