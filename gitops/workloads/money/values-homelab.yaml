@@ -4,9 +4,9 @@
 # Locally-built images pushed to GHCR (private; pulled via ghcr-pull secret).
 image:
   api:
-    tag: "0.20.4"
+    tag: "0.21.0"
   web:
-    tag: "0.20.4"
+    tag: "0.21.0"
 
 # Vault path aligned to the apps-prod AppRole policy (secret/data/money/*).
 # Secret lives at secret/money/app with properties:
@@ -76,3 +76,8 @@ monitoring:
 # Seed + enable the shared demo account on apps-prod.
 demo:
   seedEnabled: true
+
+# Invite-only sign-up for the public deployment. Set adminEmails to YOUR money
+# login email (must match exactly) so you can generate/revoke invite codes.
+registrationMode: "invite"
+adminEmails: "seyi.obadee@gmail.com"

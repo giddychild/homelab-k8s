@@ -80,6 +80,17 @@ app.kubernetes.io/component: {{ .component }}
   value: "USD"
 - name: DEMO_SEED_ENABLED
   value: {{ .Values.demo.seedEnabled | default false | quote }}
-- name: REGISTRATION_OPEN
-  value: {{ .Values.registrationOpen | default false | quote }}
+- name: REGISTRATION_MODE
+  value: {{ .Values.registrationMode | default "closed" | quote }}
+- name: ADMIN_EMAILS
+  value: {{ .Values.adminEmails | default "" | quote }}
+# Optional: best-effort Discord login/sign-up alerts. Present only once
+# discord_webhook is in Vault and externalSecrets.discordWebhook is enabled;
+# optional=true so pods start without it.
+- name: DISCORD_WEBHOOK_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.externalSecrets.targetSecretName }}
+      key: discord_webhook
+      optional: true
 {{- end -}}

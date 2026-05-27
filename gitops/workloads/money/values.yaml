@@ -73,6 +73,8 @@ externalSecrets:
   # Pull a Fernet `credential_key` for encrypting saved bill logins. Enable only
   # once that property exists in Vault (else ESO errors on the missing key).
   credentialKey: false
+  # Pull a `discord_webhook` (login/sign-up alerts). Enable once it's in Vault.
+  discordWebhook: false
 
 # CloudNativePG cluster.
 postgres:
@@ -115,10 +117,14 @@ networkPolicy:
 demo:
   seedEnabled: false
 
-# Self-registration. false = only existing accounts (+ demo) can log in; the
-# sign-up UI is hidden and /auth/register returns 403. Recommended for a public
-# deployment. Flip true briefly to add a user, then back to false.
-registrationOpen: false
+# Self-registration mode: "closed" | "invite" | "open".
+#   closed — sign-up disabled (only existing accounts + demo log in)
+#   invite — sign-up requires a single-use invite code (admins generate them)
+#   open   — anyone can sign up
+registrationMode: "closed"
+# Comma-separated admin emails (can generate/revoke invite codes). Must match a
+# user's login email exactly (case-insensitive).
+adminEmails: ""
 
 # Cloudflare Tunnel — public exposure via Zero Trust (no inbound ports).
 # Disabled by default. Enable AFTER creating the tunnel + storing its token in
