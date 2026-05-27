@@ -45,4 +45,8 @@ Anthropic key) come from the ESO-materialized secret.
   valueFrom: { secretKeyRef: { name: {{ .Values.externalSecret.secretName }}, key: jwt_public_key } }
 - name: ANTHROPIC_API_KEY
   valueFrom: { secretKeyRef: { name: {{ .Values.externalSecret.secretName }}, key: anthropic_api_key, optional: true } }
+- name: DISCORD_WEBHOOK_URL
+  valueFrom: { secretKeyRef: { name: {{ .Values.externalSecret.secretName }}, key: discord_webhook_url, optional: true } }
+- name: SIGNUP_INVITE_CODE
+  valueFrom: { secretKeyRef: { name: {{ .Values.externalSecret.secretName }}, key: signup_invite_code, optional: true } }
 {{- end -}}
