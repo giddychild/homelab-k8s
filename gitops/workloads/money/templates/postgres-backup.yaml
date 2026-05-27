@@ -1,0 +1,42 @@
+{{- if .Values.postgres.backup.enabled }}
+# S3 credentials for CNPG Barman backups, materialized from Vault by ESO.
+# Stored under secret/money/* so it's covered by the apps-prod-read AppRole policy.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.postgres.backup.s3CredentialsSecret }}
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  refreshInterval: {{ .Values.externalSecrets.refreshInterval }}
+  secretStoreRef:
+    name: {{ .Values.externalSecrets.secretStoreRef.name }}
+    kind: {{ .Values.externalSecrets.secretStoreRef.kind }}
+  target:
+    name: {{ .Values.postgres.backup.s3CredentialsSecret }}
+    creationPolicy: Owner
+  data:
+    - secretKey: ACCESS_KEY_ID
+      remoteRef:
+        key: {{ .Values.postgres.backup.s3CredentialsVaultPath }}
+        property: access_key_id
+    - secretKey: ACCESS_SECRET_KEY
+      remoteRef:
+        key: {{ .Values.postgres.backup.s3CredentialsVaultPath }}
+        property: secret_access_key
+---
+# Daily base backup. Continuous WAL archiving (set on the Cluster's
+# barmanObjectStore) plus these base backups give point-in-time recovery.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ include "money.pg.fullname" . }}-daily
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  # CNPG cron is 6-field (seconds first): 03:30 daily.
+  schedule: {{ .Values.postgres.backup.schedule | quote }}
+  backupOwnerReference: self
+  cluster:
+    name: {{ include "money.pg.fullname" . }}
+{{- end }}
