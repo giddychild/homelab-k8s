@@ -22,11 +22,16 @@ gated by `cloudflare.tunnelEnabled`, default off). Enabling is the steps below.
    `--token` in the shown command). That's all we need; ignore the install cmd.
 3. Add a **Public Hostname**:
    - Subdomain `money`, Domain `giddyland.net` (→ `money.giddyland.net`).
-   - **Service**: `HTTP` → `ingress-nginx-controller.ingress-nginx.svc.cluster.local:80`
-   - Expand **Additional application settings → HTTP Settings → HTTP Host Header**
-     and set it to **`money.apps.giddyland.net`**. This is essential — the
-     cluster Ingress routes by host, so the tunnel must present the host the
-     money Ingress already serves (so `/` → web and `/api/v1` → api both route).
+   - **Service**: `HTTPS` → `ingress-nginx-controller.ingress-nginx.svc.cluster.local:443`
+     — use **HTTPS/443**, NOT http/80. The Ingress force-redirects HTTP→HTTPS,
+     so an http origin makes cloudflared get a 308 on every request (the app
+     never loads). Talking HTTPS to the Ingress avoids that.
+   - Expand **Additional application settings**:
+     - **HTTP Settings → HTTP Host Header** = **`money.apps.giddyland.net`**
+       (the Ingress routes by host, so present the host it already serves so
+       `/` → web and `/api/v1` → api both route).
+     - **TLS → Origin Server Name** = **`money.apps.giddyland.net`** (so the
+       Ingress serves the matching Let's Encrypt cert and TLS validates).
    - Save. Cloudflare auto-creates the `money.giddyland.net` DNS record (proxied).
 
 ## 2. Store the token in Vault (you run this)
