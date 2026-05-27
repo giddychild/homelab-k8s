@@ -44,6 +44,10 @@ spec:
             passwordKey: admin-password
         prometheus:
           prometheusSpec:
+            # Select ALL Probe + PrometheusRule CRDs (not just release-labelled ones),
+            # so our money uptime probe/alerts are picked up.
+            probeSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
             retention: 15d
             storageSpec:
               volumeClaimTemplate:
