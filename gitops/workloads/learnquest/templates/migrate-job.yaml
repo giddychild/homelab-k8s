@@ -28,10 +28,13 @@ spec:
             - |
               for i in $(seq 1 40); do
                 if alembic upgrade head; then
-                  python -m app.seed && exit 0   # idempotent starter question bank
+                  # Migrations succeeded (the critical part). Seed is BEST-EFFORT:
+                  # a seed bug must never wedge the deploy, so we log + exit 0.
+                  python -m app.seed || echo "WARNING: seed failed (non-fatal), continuing"
+                  exit 0
                 fi
                 echo "db not ready yet (attempt $i), retrying in 5s..."
                 sleep 5
               done
-              echo "migrate/seed failed after retries"; exit 1
+              echo "migrations failed after retries"; exit 1
           env: {{- include "learnquest.appEnv" . | nindent 12 }}
