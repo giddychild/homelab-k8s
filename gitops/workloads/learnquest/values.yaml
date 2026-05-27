@@ -5,7 +5,7 @@ image:
   registry: ghcr.io/giddychild
   api: learnquest-api
   web: learnquest-web
-  tag: "0.1.8"
+  tag: "0.1.9"
   pullPolicy: IfNotPresent
   pullSecret: ghcr-pull
 
