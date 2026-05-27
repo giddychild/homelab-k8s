@@ -1,0 +1,54 @@
+# Resource digest script — queries Prometheus for cluster CPU/mem/disk % (now vs
+# 15m ago) and posts a one-line summary to Discord. Pure Python stdlib.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resource-digest-script
+  namespace: monitoring
+data:
+  digest.py: |
+    import json, os, urllib.request, urllib.parse
+
+    PROM = os.environ["PROM_URL"]
+    DISCORD = os.environ["DISCORD_URL"]
+
+    def q(expr):
+        url = PROM + "/api/v1/query?" + urllib.parse.urlencode({"query": expr})
+        with urllib.request.urlopen(url, timeout=20) as r:
+            res = json.load(r)["data"]["result"]
+        return float(res[0]["value"][1]) if res else None
+
+    def fmt(now, prev):
+        if now is None:
+            return "n/a"
+        if prev is None:
+            return f"{now:.0f}%"
+        d = now - prev
+        arrow = f"↑{d:.0f}%" if d >= 0.5 else (f"↓{abs(d):.0f}%" if d <= -0.5 else "→")
+        return f"{now:.0f}% {arrow}"
+
+    # Cluster-wide (all Talos nodes). 15m delta via PromQL offset — no stored state.
+    metrics = {
+        "CPU": (
+            '100*(1-avg(rate(node_cpu_seconds_total{mode="idle"}[5m])))',
+            '100*(1-avg(rate(node_cpu_seconds_total{mode="idle"}[5m] offset 15m)))',
+        ),
+        "Mem": (
+            '100*(1-sum(node_memory_MemAvailable_bytes)/sum(node_memory_MemTotal_bytes))',
+            '100*(1-sum(node_memory_MemAvailable_bytes offset 15m)/sum(node_memory_MemTotal_bytes offset 15m))',
+        ),
+        "Disk": (
+            '100*(1-sum(node_filesystem_avail_bytes{fstype=~"ext4|xfs"})/sum(node_filesystem_size_bytes{fstype=~"ext4|xfs"}))',
+            '100*(1-sum(node_filesystem_avail_bytes{fstype=~"ext4|xfs"} offset 15m)/sum(node_filesystem_size_bytes{fstype=~"ext4|xfs"} offset 15m))',
+        ),
+    }
+
+    parts = []
+    for name, (now_q, prev_q) in metrics.items():
+        parts.append(f"**{name}** " + fmt(q(now_q), q(prev_q)))
+    content = "📊 Homelab cluster (Δ vs 15m): " + "  ·  ".join(parts)
+
+    body = json.dumps({"content": content}).encode()
+    req = urllib.request.Request(DISCORD, data=body, headers={"Content-Type": "application/json"})
+    urllib.request.urlopen(req, timeout=20).read()
+    print(content)

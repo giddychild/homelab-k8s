@@ -1,0 +1,37 @@
+# Resource digest → Discord every 15 minutes (cluster CPU/mem/disk % + 15m delta).
+# Reuses the alertmanager-discord secret for the webhook; queries in-cluster Prometheus.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: resource-digest
+  namespace: monitoring
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 120
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: digest
+              image: python:3.12-alpine
+              command: ["python", "/app/digest.py"]
+              env:
+                - name: PROM_URL
+                  value: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+                - name: DISCORD_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: alertmanager-discord   # ESO-synced (key: discord_url)
+                      key: discord_url
+              volumeMounts:
+                - { name: script, mountPath: /app, readOnly: true }
+          volumes:
+            - name: script
+              configMap:
+                name: resource-digest-script
