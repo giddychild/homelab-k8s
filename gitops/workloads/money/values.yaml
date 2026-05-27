@@ -110,3 +110,7 @@ networkPolicy:
   enabled: true
   # CIDR/identity for the Ollama host on the LAN (egress allow).
   ollamaCidr: "10.0.20.0/24"
+
+# Public demo/sandbox account (seeded at startup by the API; testers can reset it).
+demo:
+  seedEnabled: false

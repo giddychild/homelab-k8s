@@ -78,4 +78,6 @@ app.kubernetes.io/component: {{ .component }}
   value: {{ .Values.ai.externalAiEnabled | quote }}
 - name: BASE_CURRENCY
   value: "USD"
+- name: DEMO_SEED_ENABLED
+  value: {{ .Values.demo.seedEnabled | default false | quote }}
 {{- end -}}
