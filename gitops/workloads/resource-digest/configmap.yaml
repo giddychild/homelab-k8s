@@ -43,12 +43,22 @@ data:
         ),
     }
 
-    parts = []
+    # Only post when something actually moved: skip unless CPU/Mem/Disk changed
+    # by >= CHANGE_THRESHOLD percent (default 1) over the last 15m. Keeps it quiet
+    # when idle while still catching real shifts.
+    THRESH = float(os.environ.get("CHANGE_THRESHOLD", "1"))
+    parts, changed = [], False
     for name, (now_q, prev_q) in metrics.items():
-        parts.append(f"**{name}** " + fmt(q(now_q), q(prev_q)))
+        now, prev = q(now_q), q(prev_q)
+        parts.append(f"**{name}** " + fmt(now, prev))
+        if now is not None and (prev is None or abs(now - prev) >= THRESH):
+            changed = True
     content = "📊 Homelab cluster (Δ vs 15m): " + "  ·  ".join(parts)
 
-    body = json.dumps({"content": content}).encode()
-    req = urllib.request.Request(DISCORD, data=body, headers={"Content-Type": "application/json", "User-Agent": "homelab-resource-digest/1.0"})
-    urllib.request.urlopen(req, timeout=20).read()
-    print(content)
+    if not changed:
+        print(f"no metric changed >= {THRESH:g}% — skipping. ({content})")
+    else:
+        body = json.dumps({"content": content}).encode()
+        req = urllib.request.Request(DISCORD, data=body, headers={"Content-Type": "application/json", "User-Agent": "homelab-resource-digest/1.0"})
+        urllib.request.urlopen(req, timeout=20).read()
+        print("posted: " + content)

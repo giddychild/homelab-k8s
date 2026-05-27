@@ -24,6 +24,8 @@ spec:
               env:
                 - name: PROM_URL
                   value: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+                - name: CHANGE_THRESHOLD
+                  value: "1"    # post only if CPU/Mem/Disk moved >= this % over 15m
                 - name: DISCORD_URL
                   valueFrom:
                     secretKeyRef:
