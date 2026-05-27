@@ -1,6 +1,6 @@
 # apps-prod overrides. Image tags bumped by CI / ArgoCD Image Updater.
 image:
-  tag: "0.2.4"
+  tag: "0.2.5"
 
 postgres:
   backup:
@@ -32,6 +32,10 @@ cloudflare:
 loginAlerts:
   enabled: true
 inviteCode:
+  enabled: true
+# Question-bank curation restricted to the admin allowlist (Vault key admin_emails,
+# e.g. your email). Add it to Vault BEFORE this merges, or ESO errors.
+adminAuth:
   enabled: true
 
 externalSecret:
