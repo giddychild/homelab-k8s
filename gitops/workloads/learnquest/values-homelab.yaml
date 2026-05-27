@@ -1,6 +1,6 @@
 # apps-prod overrides. Image tags bumped by CI / ArgoCD Image Updater.
 image:
-  tag: "0.2.3"
+  tag: "0.2.4"
 
 postgres:
   backup:
@@ -25,6 +25,14 @@ tailscale:
 cloudflare:
   tunnel:
     enabled: true
+
+# Public-URL guards: ping Discord on every sign-in/signup/failure, and require an
+# invite code to register. Needs Vault keys discord_webhook_url + signup_invite_code
+# in secret/learnquest/app BEFORE this merges (else ESO sync errors).
+loginAlerts:
+  enabled: true
+inviteCode:
+  enabled: true
 
 externalSecret:
   vaultPath: learnquest/app

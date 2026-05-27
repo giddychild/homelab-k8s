@@ -68,6 +68,17 @@ cloudflare:
     image: cloudflare/cloudflared:2026.5.2
     replicas: 2
 
+# Public-deployment guards (off by default; each needs its Vault key in
+# secret/learnquest/app BEFORE enabling, or the ESO sync errors):
+#   loginAlerts -> Discord webhook fires on every login / signup / failed attempt
+#                  (Vault key: discord_webhook_url)
+#   inviteCode  -> parent registration requires a shared code
+#                  (Vault key: signup_invite_code)
+loginAlerts:
+  enabled: false
+inviteCode:
+  enabled: false
+
 externalSecret:
   enabled: true
   storeRef: vault-backend           # ClusterSecretStore on apps-prod
