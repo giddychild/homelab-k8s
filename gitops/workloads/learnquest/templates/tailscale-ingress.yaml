@@ -1,0 +1,25 @@
+{{- if .Values.tailscale.enabled }}
+# Exposes the web shell on the tailnet via the Tailscale Kubernetes operator.
+# Only the web Service is exposed; it proxies /api/* server-side (Next rewrite),
+# so the API rides along internally — no second device, no CORS change.
+#   funnel: false -> private, reachable only by tailnet members / shared nodes
+#   funnel: true  -> PUBLIC https://<hostname>.<tailnet>.ts.net (no client install)
+# Funnel additionally requires a tailnet ACL nodeAttrs "funnel" grant for the
+# operator's proxy tag, and HTTPS Certificates enabled in the admin console.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "learnquest.name" . }}-ts
+  {{- if .Values.tailscale.funnel }}
+  annotations:
+    tailscale.com/funnel: "true"
+  {{- end }}
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: {{ include "learnquest.name" . }}-web
+      port: { number: 3000 }
+  tls:
+    - hosts: [ {{ .Values.tailscale.hostname | default "learnquest" | quote }} ]
+{{- end }}

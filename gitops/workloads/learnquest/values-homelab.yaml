@@ -10,6 +10,22 @@ ingress:
   host: learn.apps.giddyland.net
   clusterIssuer: letsencrypt-prod
 
+# Public share for the cousins goes via Cloudflare Tunnel + Access (below), which
+# adds an edge auth layer (email allow-list) + WAF in front of the app. Tailscale
+# Funnel left available but OFF (Cloudflare is the chosen public path).
+tailscale:
+  enabled: false
+  funnel: false
+  hostname: learnquest
+
+# Cloudflare Tunnel: cloudflared dials out to Cloudflare's edge (no inbound ports,
+# home IP hidden). The public hostname route (learn.giddyland.net -> web:3000) and
+# the Cloudflare Access policy (email allow-list) are set in the Zero Trust
+# dashboard; only the tunnel token is needed here (Vault key cf_tunnel_token).
+cloudflare:
+  tunnel:
+    enabled: true
+
 externalSecret:
   vaultPath: learnquest/app
   secretName: learnquest-secrets

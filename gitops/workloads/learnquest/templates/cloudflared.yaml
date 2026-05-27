@@ -1,0 +1,50 @@
+{{- if .Values.cloudflare.tunnel.enabled }}
+# Cloudflare Tunnel (remotely-managed). cloudflared dials OUT to Cloudflare's edge
+# (no inbound ports, home IP hidden). The public hostname route
+# (e.g. learn.giddyland.net -> http://learnquest-web:3000) and the Cloudflare
+# Access policy (email allow-list) are configured in the Zero Trust dashboard;
+# this Deployment only needs the tunnel token (Vault -> ESO -> learnquest-secrets).
+# NOTE: if networkPolicy is enabled, cloudflared needs egress to the internet
+# (443/7844) + DNS, and to the web Service — add allows there.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "learnquest.name" . }}-cloudflared
+  labels: {{- include "learnquest.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.cloudflare.tunnel.replicas | default 2 }}
+  selector:
+    matchLabels: { app: {{ include "learnquest.name" . }}-cloudflared }
+  template:
+    metadata:
+      labels: { app: {{ include "learnquest.name" . }}-cloudflared }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: cloudflared
+          image: "{{ .Values.cloudflare.tunnel.image }}"
+          args: ["tunnel", "--no-autoupdate", "--metrics", "0.0.0.0:2000", "run"]
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalSecret.secretName }}
+                  key: cf_tunnel_token
+          livenessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+{{- end }}

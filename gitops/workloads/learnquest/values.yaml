@@ -51,6 +51,23 @@ ingress:
   clusterIssuer: letsencrypt-prod   # validate with -staging first
   tls: true
 
+# Optional: expose the web shell on the tailnet via the Tailscale operator.
+# Off by default; the homelab overlay turns it on.
+tailscale:
+  enabled: false
+  funnel: false                     # true = public https://<hostname>.<tailnet>.ts.net
+  hostname: learnquest
+
+# Optional: expose the web shell publicly via a Cloudflare Tunnel (cloudflared).
+# Off by default. The public hostname route + Cloudflare Access policy live in the
+# Zero Trust dashboard; only the tunnel token is needed here (Vault key
+# cf_tunnel_token, surfaced into learnquest-secrets when enabled).
+cloudflare:
+  tunnel:
+    enabled: false
+    image: cloudflare/cloudflared:2026.5.2
+    replicas: 2
+
 externalSecret:
   enabled: true
   storeRef: vault-backend           # ClusterSecretStore on apps-prod
