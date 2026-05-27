@@ -6,7 +6,7 @@ image:
   api:
     tag: "0.17.0"
   web:
-    tag: "0.17.0"
+    tag: "0.17.1"
 
 # Vault path aligned to the apps-prod AppRole policy (secret/data/money/*).
 # Secret lives at secret/money/app with properties:
