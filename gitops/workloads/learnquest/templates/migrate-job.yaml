@@ -27,9 +27,11 @@ spec:
             - -c
             - |
               for i in $(seq 1 40); do
-                alembic upgrade head && exit 0
+                if alembic upgrade head; then
+                  python -m app.seed && exit 0   # idempotent starter question bank
+                fi
                 echo "db not ready yet (attempt $i), retrying in 5s..."
                 sleep 5
               done
-              echo "migration failed after retries"; exit 1
+              echo "migrate/seed failed after retries"; exit 1
           env: {{- include "learnquest.appEnv" . | nindent 12 }}
