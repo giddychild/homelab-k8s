@@ -80,4 +80,6 @@ app.kubernetes.io/component: {{ .component }}
   value: "USD"
 - name: DEMO_SEED_ENABLED
   value: {{ .Values.demo.seedEnabled | default false | quote }}
+- name: REGISTRATION_OPEN
+  value: {{ .Values.registrationOpen | default false | quote }}
 {{- end -}}

@@ -114,3 +114,19 @@ networkPolicy:
 # Public demo/sandbox account (seeded at startup by the API; testers can reset it).
 demo:
   seedEnabled: false
+
+# Self-registration. false = only existing accounts (+ demo) can log in; the
+# sign-up UI is hidden and /auth/register returns 403. Recommended for a public
+# deployment. Flip true briefly to add a user, then back to false.
+registrationOpen: false
+
+# Cloudflare Tunnel — public exposure via Zero Trust (no inbound ports).
+# Disabled by default. Enable AFTER creating the tunnel + storing its token in
+# Vault (see docs/runbooks/money-cloudflare-tunnel.md). The public-hostname →
+# service route (with an HTTP Host Header override of ingress.host) is set in
+# the Cloudflare dashboard.
+cloudflare:
+  tunnelEnabled: false
+  image: cloudflare/cloudflared:2026.5.2
+  replicas: 2
+  tunnelTokenVaultPath: "money/cf-tunnel"
