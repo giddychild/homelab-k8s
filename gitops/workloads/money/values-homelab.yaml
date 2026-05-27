@@ -49,7 +49,7 @@ postgres:
     #      breaks Velero's BSL) + a scoped IAM user
     #   2. write access_key_id / secret_access_key to Vault secret/money/backup-s3
     # Then ESO syncs money-pg-backup-s3 and CNPG starts archiving.
-    enabled: false
+    enabled: true
     destinationPath: "s3://giddyland-money-pg-backups/"
     endpointURL: "https://s3.us-east-1.amazonaws.com"
     s3CredentialsVaultPath: "money/backup-s3"
