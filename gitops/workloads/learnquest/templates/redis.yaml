@@ -1,0 +1,39 @@
+{{- if .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "learnquest.name" . }}-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: {{ include "learnquest.name" . }}-redis }
+  template:
+    metadata:
+      labels: { app: {{ include "learnquest.name" . }}-redis }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports: [{ containerPort: 6379 }]
+          volumeMounts: [{ name: data, mountPath: /data }]
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: {{ include "learnquest.name" . }}-redis }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "learnquest.name" . }}-redis
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.redis.storageClass }}
+  resources: { requests: { storage: {{ .Values.redis.size }} } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "learnquest.name" . }}-redis
+spec:
+  selector: { app: {{ include "learnquest.name" . }}-redis }
+  ports: [{ port: 6379, targetPort: 6379 }]
+{{- end }}

@@ -1,0 +1,27 @@
+# apps-prod overrides. Image tags bumped by CI / ArgoCD Image Updater.
+image:
+  tag: "0.1.0"
+
+postgres:
+  backup:
+    enabled: false   # P0: off. Enable with S3 creds (Velero covers PG via WAL later).
+
+ingress:
+  host: learn.apps.giddyland.net
+  clusterIssuer: letsencrypt-prod
+
+externalSecret:
+  vaultPath: learnquest/app
+  secretName: learnquest-secrets
+
+# P1: the installable PWA web shell exists (iPad home-screen icon). Web is ON;
+# ingress routes / -> web and /api -> api. Requires the web image in GHCR.
+web:
+  enabled: true
+
+# P0 hardening deferred (mirror money's first deploy): tighten after the loop works.
+networkPolicy:
+  enabled: false
+monitoring:
+  serviceMonitor:
+    enabled: false

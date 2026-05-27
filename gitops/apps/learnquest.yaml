@@ -1,0 +1,31 @@
+# Child Application — homelab ArgoCD (hub) deploys the LearnQuest children's
+# learning platform to the apps-prod cluster (hub-and-spoke), sibling of money.
+# Chart lives in this public repo (secret-free); app secrets come from Vault via
+# ESO (cross-cluster AppRole). App source is the private giddychild/learnquest
+# repo; images in GHCR (pulled via ghcr-pull). Same pattern as money.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: learnquest
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/giddychild/homelab-k8s.git
+    targetRevision: main
+    path: gitops/workloads/learnquest
+    helm:
+      valueFiles:
+        - values-homelab.yaml
+  destination:
+    server: https://192.168.216.204:6443   # apps-prod
+    namespace: learnquest
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true   # CNPG / large CRDs

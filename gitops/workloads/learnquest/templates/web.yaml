@@ -1,0 +1,33 @@
+{{- if .Values.web.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "learnquest.name" . }}-web
+  labels: {{- include "learnquest.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.web.replicas }}
+  selector:
+    matchLabels: { app: {{ include "learnquest.name" . }}-web }
+  template:
+    metadata:
+      labels: { app: {{ include "learnquest.name" . }}-web }
+    spec:
+      imagePullSecrets: [{ name: {{ .Values.image.pullSecret }} }]
+      containers:
+        - name: web
+          image: "{{ .Values.image.registry }}/{{ .Values.image.web }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{ containerPort: {{ .Values.web.port }} }]
+          env:
+            - name: API_INTERNAL_URL
+              value: "http://{{ include "learnquest.name" . }}-api:8000"
+          resources: {{- toYaml .Values.web.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "learnquest.name" . }}-web
+spec:
+  selector: { app: {{ include "learnquest.name" . }}-web }
+  ports: [{ port: 3000, targetPort: {{ .Values.web.port }} }]
+{{- end }}

@@ -1,0 +1,35 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "learnquest.name" . }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts: [{{ .Values.ingress.host | quote }}]
+      secretName: {{ include "learnquest.name" . }}-tls
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: { name: {{ include "learnquest.name" . }}-api, port: { number: 8000 } }
+          {{- if .Values.web.enabled }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: {{ include "learnquest.name" . }}-web, port: { number: 3000 } }
+          {{- else }}
+          # P0 api-first: no web shell yet, route root to the API too.
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: {{ include "learnquest.name" . }}-api, port: { number: 8000 } }
+          {{- end }}
+{{- end }}

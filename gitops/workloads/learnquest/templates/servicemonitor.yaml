@@ -1,0 +1,13 @@
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "learnquest.name" . }}-api
+  labels: {{- include "learnquest.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: { app: {{ include "learnquest.name" . }}-api }
+  endpoints:
+    - port: http
+      path: /metrics
+{{- end }}

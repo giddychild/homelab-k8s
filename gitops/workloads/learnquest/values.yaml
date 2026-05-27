@@ -1,0 +1,75 @@
+# Default values. Overridden by values-homelab.yaml for apps-prod.
+nameOverride: ""
+
+image:
+  registry: ghcr.io/giddychild
+  api: learnquest-api
+  web: learnquest-web
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+  pullSecret: ghcr-pull
+
+api:
+  replicas: 2
+  port: 8000
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: "1", memory: 512Mi }
+
+web:
+  enabled: true        # P0 ships api-first; set false until the Next.js shell exists
+  replicas: 2
+  port: 3000
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+
+worker:
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: "1", memory: 1Gi }   # AI factory batch jobs
+
+redis:
+  enabled: true
+  storageClass: longhorn-r1   # re-creatable
+  size: 1Gi
+
+postgres:
+  # CloudNativePG cluster. pgvector via the standard image flavor.
+  instances: 2
+  image: ghcr.io/cloudnative-pg/postgresql:16-standard-bookworm
+  storageClass: longhorn-r2   # 2 replicas; WAL -> S3
+  size: 5Gi
+  backup:
+    enabled: false            # enable when S3 creds wired (mirror money)
+
+ingress:
+  enabled: true
+  className: nginx
+  host: learn.apps.giddyland.net
+  clusterIssuer: letsencrypt-prod   # validate with -staging first
+  tls: true
+
+externalSecret:
+  enabled: true
+  storeRef: vault-backend           # ClusterSecretStore on apps-prod
+  vaultPath: learnquest/app         # secret/learnquest/app
+  secretName: learnquest-secrets
+
+ai:
+  ollamaUrl: http://ollama.ai-ops.svc.cluster.local:11434
+  factoryProvider: anthropic        # Claude for offline factory
+
+networkPolicy:
+  enabled: true                     # default-deny + scoped allows
+
+monitoring:
+  serviceMonitor:
+    enabled: false                  # no Prom operator on apps-prod yet
+
+env:
+  ENVIRONMENT: production
+  BASE_CURRENCY: USD
+  MIN_AGE_YEARS: "4"
+  MAX_AGE_YEARS: "10"
