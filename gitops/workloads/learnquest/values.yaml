@@ -78,6 +78,10 @@ loginAlerts:
   enabled: false
 inviteCode:
   enabled: false
+# Admin allowlist for question-bank curation (Vault key: admin_emails). When on,
+# only those emails can generate/approve/edit; everyone else is a normal parent.
+adminAuth:
+  enabled: false
 
 externalSecret:
   enabled: true
