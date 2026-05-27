@@ -1,0 +1,98 @@
+# Black-box uptime monitoring for the money app on apps-prod.
+# Probes the real public URL from the homelab Prometheus, so it catches anything
+# that makes the site unreachable (ingress/node down, DNS, expired cert, non-2xx)
+# — the layer ArgoCD app-health can't see. Alerts route to Discord (severity).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blackbox-exporter
+  namespace: monitoring
+  labels:
+    app: blackbox-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: blackbox-exporter
+  template:
+    metadata:
+      labels:
+        app: blackbox-exporter
+    spec:
+      containers:
+        - name: blackbox-exporter
+          image: quay.io/prometheus/blackbox-exporter:v0.25.0
+          ports:
+            - containerPort: 9115
+              name: http
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blackbox-exporter
+  namespace: monitoring
+  labels:
+    app: blackbox-exporter
+spec:
+  selector:
+    app: blackbox-exporter
+  ports:
+    - name: http
+      port: 9115
+      targetPort: 9115
+---
+# Probe the real user-facing endpoint every 30s via blackbox http_2xx.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: money-endpoints
+  namespace: monitoring
+spec:
+  interval: 30s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter.monitoring.svc.cluster.local:9115
+  targets:
+    staticConfig:
+      static:
+        - https://money.apps.giddyland.net/login
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: money-availability
+  namespace: monitoring
+spec:
+  groups:
+    - name: money-availability
+      rules:
+        - alert: MoneyWebsiteDown
+          expr: probe_success{instance="https://money.apps.giddyland.net/login"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Money is unreachable"
+            description: "money.apps.giddyland.net failed its uptime probe for >2m (no response or non-2xx). Check apps-prod ingress/nodes."
+        - alert: MoneyProbeMissing
+          expr: absent(probe_success{instance="https://money.apps.giddyland.net/login"})
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Money availability probe is not reporting"
+            description: "No probe_success samples for money for 10m — blackbox-exporter or the Probe may be down."
