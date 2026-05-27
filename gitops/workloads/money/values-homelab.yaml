@@ -36,9 +36,11 @@ ingress:
 
 postgres:
   instances: 2
-  # CNPG "standard" flavor bundles pgvector (the scaffold's "16-bookworm-pgvector"
-  # tag does not exist). This floating tag tracks the latest 16.x standard image.
-  image: ghcr.io/cloudnative-pg/postgresql:16-standard-bookworm
+  # "system" flavor = standard (incl. pgvector) PLUS barman-cloud binaries, which
+  # the in-tree barmanObjectStore backup needs (the "standard" image lacks them →
+  # "barman-cloud-backup: not found"). system is deprecated long-term; the future
+  # path is the Barman Cloud Plugin, but this keeps backups working today.
+  image: ghcr.io/cloudnative-pg/postgresql:16-system-bookworm
   storage:
     storageClass: longhorn-r2
     size: 20Gi
