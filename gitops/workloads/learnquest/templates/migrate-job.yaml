@@ -1,13 +1,20 @@
-# Alembic migrations as an ArgoCD PreSync hook (runs before the app rolls out).
+# Alembic migrations as an ArgoCD PostSync hook.
+#
+# MUST be PostSync, not PreSync: the migration depends on the CNPG Postgres
+# (its generated `learnquest-pg-app` secret + the `-pg-rw` service) and on the
+# ESO-materialised `learnquest-secrets`, both of which are created in the MAIN
+# sync. A PreSync hook runs *before* those exist -> the pod sits in
+# CreateContainerConfigError and the whole sync deadlocks. PostSync runs after
+# the DB + secrets are up; the retry loop tolerates CNPG still electing a primary.
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ include "learnquest.name" . }}-migrate
   annotations:
-    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
-  backoffLimit: 3
+  backoffLimit: 2
   template:
     spec:
       restartPolicy: Never
@@ -15,5 +22,14 @@ spec:
       containers:
         - name: migrate
           image: "{{ .Values.image.registry }}/{{ .Values.image.api }}:{{ .Values.image.tag }}"
-          command: ["alembic", "upgrade", "head"]
+          command:
+            - sh
+            - -c
+            - |
+              for i in $(seq 1 40); do
+                alembic upgrade head && exit 0
+                echo "db not ready yet (attempt $i), retrying in 5s..."
+                sleep 5
+              done
+              echo "migration failed after retries"; exit 1
           env: {{- include "learnquest.appEnv" . | nindent 12 }}
