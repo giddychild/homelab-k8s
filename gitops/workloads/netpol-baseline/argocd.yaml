@@ -113,3 +113,27 @@ spec:
       toPorts:
         - ports:
             - { port: "443", protocol: TCP }
+---
+# argocd-application-controller -> REMOTE Kubernetes clusters (apps cluster
+# at 192.168.216.204:6443). The `toEntities: ["kube-apiserver"]` in default-
+# deny only covers the LOCAL apiserver — remote clusters that ArgoCD manages
+# need their own egress allow. Symptom when missing: money/learnquest apps
+# show "ComparisonError: dial tcp <remote-VIP>:6443: i/o timeout".
+#
+# Using a LAN CIDR (192.168.216.0/24) on 6443 is the safest narrow allow —
+# only LAN-internal Kubernetes APIs, not the public internet.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argocd-controller-egress-remote-clusters
+  namespace: argocd
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-application-controller
+  egress:
+    - toCIDR:
+        - 192.168.216.0/24
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP }
