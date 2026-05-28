@@ -171,6 +171,19 @@ minio:
     limits:
       cpu: 500m
       memory: 512Mi
+  # Off-site mirror of the receipts bucket (CronJob runs `mc mirror`). Disabled
+  # by default. See docs/runbooks/money-receipts-backup.md.
+  backup:
+    enabled: false
+    image: minio/mc:RELEASE.2026-05-01T00-00-00Z
+    # AWS S3 by default — any S3-compatible endpoint works.
+    endpointUrl: "https://s3.us-east-1.amazonaws.com"
+    bucket: "giddyland-money-receipts-backup"
+    # Vault path (KV v2) with access_key_id / secret_access_key for the
+    # destination bucket's IAM user.
+    vaultPath: "money/receipts-backup-s3"
+    # Daily 03:15 — small/incremental, runs before the CNPG backup at 03:30.
+    schedule: "15 3 * * *"
 
 # Receipts storage knobs read by the API. When minio.enabled is true, the
 # endpoint URL should point at the in-cluster MinIO Service.
