@@ -1,0 +1,106 @@
+# Default-deny + scoped allows for the ai-ops namespace (Ollama + Open WebUI).
+# Sensitive because Ollama serves model inference to anything that can reach
+# port 11434 — currently every pod cluster-wide. After: only money/worker
+# (Cilium auth on labels) + learnquest/worker can hit it.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ai-ops-default-deny
+  namespace: ai-ops
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+    # Intra-namespace (open-webui -> ollama).
+    - toEndpoints: [ {} ]
+---
+# ingress-nginx -> open-webui (the chat.apps.giddyland.net path).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ai-ops-allow-ingress-to-webui
+  namespace: ai-ops
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: open-webui
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+      toPorts:
+        - ports:
+            - { port: "8080", protocol: TCP }
+---
+# Cross-namespace workers -> Ollama (the only legit cluster consumers).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ai-ops-allow-workers-to-ollama
+  namespace: ai-ops
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+  ingress:
+    - fromEndpoints:
+        # money worker (apps-cluster namespace = money)
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: money
+            app.kubernetes.io/component: worker
+        # learnquest worker
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: learnquest
+            app.kubernetes.io/component: worker
+        # Open WebUI (intra-ns convenience match too)
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ai-ops
+            app.kubernetes.io/name: open-webui
+      toPorts:
+        - ports:
+            - { port: "11434", protocol: TCP }
+---
+# LAN access to Ollama on its LB IP (192.168.216.240).  mgmt-jump uses this
+# for direct CLI calls without going through the cluster ingress.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ai-ops-allow-lan-to-ollama
+  namespace: ai-ops
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+  ingress:
+    - fromCIDR:
+        - 192.168.216.0/24
+      toPorts:
+        - ports:
+            - { port: "11434", protocol: TCP }
+---
+# Ollama egress — model pulls from registry.ollama.ai.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ai-ops-ollama-egress-registry
+  namespace: ai-ops
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+  egress:
+    - toFQDNs:
+        - { matchPattern: "*.ollama.ai" }
+        - { matchPattern: "registry.ollama.ai" }
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }

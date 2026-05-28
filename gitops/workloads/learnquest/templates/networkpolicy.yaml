@@ -1,35 +1,196 @@
 {{- if .Values.networkPolicy.enabled }}
-# Default-deny + scoped allows (Cilium honors standard NetworkPolicy).
-# The single cross-namespace allow: worker -> ai-ops/ollama for the AI factory.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
+# Full default-deny + explicit-allow zero-trust for the learnquest namespace.
+# Switched from the v1 "podSelector: {}" pair (too permissive — intra-ns wide
+# open) to per-edge CiliumNetworkPolicies. FQDN egress for the AI factory
+# Anthropic API + Cloudflare Tunnel needs Cilium DNS-aware policy.
+---
+# 1) Default-deny + DNS egress for every pod.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
 metadata:
   name: {{ include "learnquest.name" . }}-default-deny
 spec:
-  podSelector: {}
-  policyTypes: [Ingress, Egress]
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: {{ include "learnquest.name" . }}-allow
-spec:
-  podSelector: {}
-  policyTypes: [Ingress, Egress]
-  ingress:
-    # ingress-nginx -> web/api
-    - from:
-        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: ingress-nginx } }
-    # intra-namespace (web->api, app->redis/pg)
-    - from:
-        - podSelector: {}
+  endpointSelector: {}
+  ingress: []
   egress:
-    - to: [{ podSelector: {} }]                       # intra-namespace
-    - to:                                             # DNS
-        - namespaceSelector: {}
-          podSelector: { matchLabels: { k8s-app: kube-dns } }
-      ports: [{ port: 53, protocol: UDP }]
-    - to:                                             # worker -> homelab Ollama (ai-ops)
-        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: ai-ops } }
-      ports: [{ port: 11434, protocol: TCP }]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+---
+# 2) ingress-nginx -> web (the in-cluster LAN path; Cloudflare Tunnel goes the
+#    same way per values-homelab.yaml).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "learnquest.name" . }}-ingress-to-web
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: web
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.web.port }}", protocol: TCP }
+---
+# 3) web -> api (BFF proxy forwards browser /api calls to api service).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "learnquest.name" . }}-web-to-api
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: api
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: web
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.api.port }}", protocol: TCP }
+---
+# 4) api + worker + migrate -> postgres + redis.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "learnquest.name" . }}-app-to-data
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values: ["api", "worker", "migrate"]
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "learnquest.name" . }}-pg
+      toPorts:
+        - ports:
+            - { port: "5432", protocol: TCP }
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: redis
+      toPorts:
+        - ports:
+            - { port: "6379", protocol: TCP }
+---
+# 5) worker -> ai-ops/ollama (offline AI factory). Cross-namespace.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "learnquest.name" . }}-worker-to-ollama
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: worker
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ai-ops
+            app.kubernetes.io/name: ollama
+      toPorts:
+        - ports:
+            - { port: "11434", protocol: TCP }
+---
+{{- if eq .Values.ai.factoryProvider "anthropic" }}
+# 5b) worker -> Anthropic API (when factoryProvider=anthropic).  FQDN egress
+#     keeps it tight to api.anthropic.com only.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "learnquest.name" . }}-worker-to-anthropic
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: worker
+  egress:
+    - toFQDNs:
+        - { matchName: "api.anthropic.com" }
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
+---
+{{- end }}
+# 6) CNPG operator (cnpg-system) -> postgres pods (manages bootstrap/failover).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "learnquest.name" . }}-cnpg-operator-to-pg
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ include "learnquest.name" . }}-pg
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - { port: "5432", protocol: TCP }
+            - { port: "8000", protocol: TCP }
+            - { port: "9187", protocol: TCP }
+---
+{{- if .Values.cloudflare.tunnel.enabled }}
+# 7) cloudflared -> ingress-nginx (per values-homelab.yaml the tunnel hits
+#    cluster ingress with a Host header override) + Cloudflare edge egress.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "learnquest.name" . }}-cloudflared-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: cloudflared
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+      toPorts:
+        - ports:
+            - { port: "80",  protocol: TCP }
+            - { port: "443", protocol: TCP }
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: web
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.web.port }}", protocol: TCP }
+    - toFQDNs:
+        - { matchPattern: "*.cloudflare.com" }
+        - { matchPattern: "*.cftunnel.com" }
+        - { matchPattern: "*.argotunnel.com" }
+      toPorts:
+        - ports:
+            - { port: "443",  protocol: TCP }
+            - { port: "7844", protocol: TCP }
+            - { port: "7844", protocol: UDP }
+---
+{{- end }}
+{{- if .Values.postgres.backup.enabled }}
+# 8) postgres -> S3 (barman backup, when enabled).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "learnquest.name" . }}-pg-to-s3
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ include "learnquest.name" . }}-pg
+  egress:
+    - toFQDNs:
+        - { matchPattern: "s3.*.amazonaws.com" }
+        - { matchPattern: "*.s3.*.amazonaws.com" }
+        - { matchPattern: "*.s3.amazonaws.com" }
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
+{{- end }}
 {{- end }}

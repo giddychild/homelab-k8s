@@ -1,0 +1,109 @@
+# Default-deny + scoped allows for the argocd namespace.  Closes the gap
+# where any pod could reach argocd-server's UI/API or argocd-repo-server's
+# gRPC port (which holds repo creds in memory).
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argocd-default-deny
+  namespace: argocd
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+    - toEndpoints: [ {} ]   # intra-ns (server -> repo-server -> redis, etc.)
+    # ArgoCD applies manifests against the kube API — needs apiserver egress.
+    - toEntities: ["kube-apiserver"]
+---
+# argocd-server needs egress to Git (GitHub) + the helm repos it pulls from.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argocd-repo-server-egress-git
+  namespace: argocd
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-repo-server
+  egress:
+    - toFQDNs:
+        - { matchPattern: "*.github.com" }
+        - { matchName:    "github.com" }
+        - { matchName:    "codeload.github.com" }
+        - { matchPattern: "*.githubusercontent.com" }
+        # Helm repos used by app-of-apps
+        - { matchName:    "charts.jetstack.io" }
+        - { matchName:    "charts.bitnami.com" }
+        - { matchName:    "kubernetes.github.io" }
+        - { matchName:    "prometheus-community.github.io" }
+        - { matchName:    "grafana.github.io" }
+        - { matchPattern: "*.grafana.com" }
+        - { matchPattern: "*.cnpg.io" }
+        - { matchPattern: "*.gitops.dev" }
+        - { matchPattern: "ghcr.io" }
+        - { matchPattern: "*.ghcr.io" }
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
+            - { port: "22",  protocol: TCP }   # git+ssh if used
+---
+# ingress-nginx -> argocd-server (argocd.apps.giddyland.net).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argocd-allow-ingress-to-server
+  namespace: argocd
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-server
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+      toPorts:
+        - ports:
+            - { port: "8080", protocol: TCP }
+---
+# LAN admin to argocd-server (LB IP).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argocd-allow-lan-to-server
+  namespace: argocd
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-server
+  ingress:
+    - fromCIDR:
+        - 192.168.216.0/24
+      toPorts:
+        - ports:
+            - { port: "8080", protocol: TCP }
+---
+# argocd-notifications -> Discord (the /code-review trigger path).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argocd-notifications-egress-discord
+  namespace: argocd
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-notifications-controller
+  egress:
+    - toFQDNs:
+        - { matchPattern: "*.discord.com" }
+        - { matchName:    "discord.com" }
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }

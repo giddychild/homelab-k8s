@@ -1,0 +1,27 @@
+# Cluster-wide network-policy baseline.  Each file is a per-namespace
+# default-deny + scoped allows.  Roll out ONE NAMESPACE AT A TIME — apply
+# vault.yaml first, watch for `kubectl logs -n vault vault-0` warnings + ESO
+# sync errors for 1 hour, then move to ai-ops, then monitoring, then argocd.
+# Rollback per ns: `kubectl delete -f <file>` undoes that namespace's policies.
+#
+# See docs/runbooks/network-policy-rollout.md for the procedure.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: netpol-baseline
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/giddychild/homelab-k8s
+    targetRevision: main
+    path: gitops/workloads/netpol-baseline
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    # MANUAL sync only — these are landmine policies; don't auto-roll forward.
+    syncOptions:
+      - CreateNamespace=false
+      - ApplyOutOfSyncOnly=true

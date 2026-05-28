@@ -1,0 +1,123 @@
+# Default-deny + scoped allows for the monitoring namespace (kube-prometheus-
+# stack + Loki/Promtail + Alertmanager + resource-digest + n8n).  Prometheus
+# needs to scrape EVERYTHING, so its egress allows are broad — the value here
+# is preventing inbound from random pods to the dashboards/Alertmanager API.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: monitoring-default-deny
+  namespace: monitoring
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+    # Intra-namespace (Prom -> Alertmanager, Grafana -> Loki, etc.)
+    - toEndpoints: [ {} ]
+---
+# Prometheus needs to scrape every namespace + every node — keep wide.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: monitoring-prometheus-scrape
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  egress:
+    - toEntities: ["all"]   # any cluster IP + node IPs (kubelet/cAdvisor)
+---
+# Promtail needs to tail node logs over the kubelet -- node-IP/10250.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: monitoring-promtail-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: promtail
+  egress:
+    - toEntities: ["host", "remote-node"]
+    - toEndpoints: [ {} ]   # Loki in-ns
+---
+# ingress-nginx -> Grafana (grafana.apps.giddyland.net public TLS).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: monitoring-allow-ingress-to-grafana
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+      toPorts:
+        - ports:
+            - { port: "3000", protocol: TCP }
+---
+# LAN admin to Grafana (LB IP) — same pattern as vault.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: monitoring-allow-lan-to-grafana
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  ingress:
+    - fromCIDR:
+        - 192.168.216.0/24
+      toPorts:
+        - ports:
+            - { port: "3000", protocol: TCP }
+---
+# Alertmanager egress: Discord webhook (FQDN).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: monitoring-alertmanager-egress-discord
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  egress:
+    - toFQDNs:
+        - { matchPattern: "*.discord.com" }
+        - { matchName:    "discord.com" }
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
+---
+# resource-digest CronJob egress: Prometheus (in-ns, already in default-deny)
+# + Discord webhook.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: monitoring-resource-digest-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      job-name: resource-digest
+  egress:
+    - toFQDNs:
+        - { matchPattern: "*.discord.com" }
+        - { matchName:    "discord.com" }
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }

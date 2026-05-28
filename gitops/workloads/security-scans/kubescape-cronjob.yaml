@@ -1,0 +1,169 @@
+---
+# Kubescape — runs Kubernetes CIS Benchmark + NSA-CISA + MITRE ATT&CK
+# frameworks as a plain pod (no hostPath mounts).  Replaces kube-bench which
+# can't run on Talos (Talos root filesystem is read-only — kube-bench tries
+# to mkdir /etc/systemd and the kernel refuses).
+#
+# Runs weekly Mondays at 09:00 UTC; writes a JSON report to stdout (Job logs
+# tail) so you can grep + diff against the previous week.  Manual run:
+#   kubectl create job --from=cronjob/kubescape-scan -n security-scans now
+#   kubectl logs -n security-scans -l job-name=now --tail=-1 | jq '...'
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security-scans
+  labels:
+    # Kubescape needs read access to all cluster resources; runs as non-root.
+    # Baseline PSS is sufficient (no host mounts, no privileged).
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline
+    pod-security.kubernetes.io/audit: baseline
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubescape
+  namespace: security-scans
+---
+# Kubescape needs cluster-wide read to scan every resource.  This is the
+# operator's published manifest equivalent, scoped to read-only verbs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubescape-scanner
+rules:
+  - apiGroups: [""]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps", "batch", "extensions", "networking.k8s.io", "policy",
+                "rbac.authorization.k8s.io", "autoscaling", "storage.k8s.io",
+                "apiextensions.k8s.io", "admissionregistration.k8s.io",
+                "apiregistration.k8s.io",      # CIS-1.2.x checks need apiservices
+                "coordination.k8s.io",          # leases (leader election)
+                "discovery.k8s.io",             # endpointslices
+                "cilium.io", "external-secrets.io", "argoproj.io",
+                "cert-manager.io", "monitoring.coreos.com", "velero.io",
+                "cnpg.io", "longhorn.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["*"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubescape-scanner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubescape-scanner
+subjects:
+  - kind: ServiceAccount
+    name: kubescape
+    namespace: security-scans
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kubescape-scan
+  namespace: security-scans
+spec:
+  schedule: "0 9 * * 1"           # Mon 09:00 UTC = Mon 04:00 America/Chicago
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4   # 1 month of history
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800   # 30 min hard cap
+      ttlSecondsAfterFinished: 2592000   # 30 days
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: kubescape
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: kubescape
+              image: quay.io/kubescape/kubescape-cli:v3.0.43
+              # Frameworks valid in Kubescape v3.0.43 (verified via
+              # `kubescape list frameworks`):
+              #   NSA, MITRE, ArmoBest, AllControls, DevOpsBest, SOC2,
+              #   cis-v1.10.0, cis-v1.12.0 (vanilla k8s)
+              #   cis-aks-t1.2.0, cis-aks-t1.8.0 (AKS)
+              #   cis-eks-t1.7.0, cis-eks-t1.8.0 (EKS)
+              # Names ARE case-sensitive (PascalCase for the curated ones).
+              # cis-v1.12.0 is the newest CIS Benchmark for vanilla k8s.
+              # To re-check on a future image bump:
+              #   kubectl run ksls --rm -it --restart=Never \
+              #     --image=quay.io/kubescape/kubescape-cli:vX.Y.Z \
+              #     --command -- kubescape list frameworks
+              args:
+                - scan
+                - framework
+                - NSA,MITRE,ArmoBest,cis-v1.12.0
+                - --format=pretty-printer
+                - --verbose
+                - --logger=info
+              env:
+                - { name: KS_CACHE_DIR, value: /tmp/.kubescape }
+                - { name: HOME,        value: /tmp }
+              resources:
+                requests: { cpu: 200m, memory: 512Mi }
+                limits:   { cpu: "2",  memory: 2Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - { name: tmp, mountPath: /tmp }
+          volumes:
+            - { name: tmp, emptyDir: { sizeLimit: 1Gi } }
+---
+# One-shot Job for the FIRST run (so you don't wait until Monday to see the
+# baseline score).  Delete after reading the logs.  Same spec as the CronJob
+# pod, just standalone.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kubescape-baseline
+  namespace: security-scans
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 604800
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: kubescape
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: kubescape
+          image: quay.io/kubescape/kubescape-cli:v3.0.43
+          args:
+            - scan
+            - framework
+            - NSA,MITRE,ArmoBest,cis-v1.12.0
+            - --format=pretty-printer
+            - --verbose
+            - --logger=info
+          env:
+            - { name: KS_CACHE_DIR, value: /tmp/.kubescape }
+            - { name: HOME,        value: /tmp }
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits:   { cpu: "2",  memory: 2Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: tmp, emptyDir: { sizeLimit: 1Gi } }
