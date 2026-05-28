@@ -4,7 +4,8 @@
 # migrate->postgres, CNPG operator->postgres, postgres->S3 (barman), and DNS.
 # Cilium CRDs (cilium.io/v2). Each policy is the minimum allow for one edge.
 ---
-# 1) Default-deny: ingress none, egress DNS only.  Every other allow is additive.
+# 1) Default-deny: ingress none, egress DNS + intra-ns + kube-apiserver.
+#    Every cross-namespace + external allow is additive in other policies.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -25,6 +26,26 @@ spec:
         - ports:
             - { port: "53", protocol: UDP }
             - { port: "53", protocol: TCP }
+          # Cilium DNS proxy — REQUIRED for toFQDNs rules in this chart
+          # (cloudflared-egress -> *.cloudflare.com, postgres-to-s3 ->
+          # s3.amazonaws.com) to actually match the resolved IPs.
+          # Without this, every FQDN-targeted connection gets dropped
+          # silently. See docs/runbooks/network-policy-rollout.md.
+          rules:
+            dns:
+              - matchPattern: "*"
+    # Intra-namespace egress on any port — web -> api, api -> redis service
+    # IP, etc. Without this, default-deny blocks every cross-component call
+    # and we'd need an explicit allow per edge (api->redis, web->api, etc).
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ .Release.Namespace }}
+    # kube-apiserver egress (preemptive — CNPG instance pods + Cilium
+    # identity-aware libraries occasionally need it).
+    - toEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP }
 ---
 # 2) ingress-nginx -> web (the LAN-served path; web also serves the BFF proxy
 #    that calls api internally, so api stays cluster-internal only).
@@ -174,13 +195,14 @@ spec:
         - ports:
             - { port: "11434", protocol: TCP }
 ---
-# 6) CNPG operator (cnpg-system ns) -> postgres pods. Operator does instance
-#    bootstrap, failover, switchover, status checks — without this it can't
-#    manage the cluster and pgbench loops emit "connection refused".
+# 6) Postgres ingress — CNPG operator (cnpg-system), money app pods
+#    (api/worker/migrate), AND intra-cluster Postgres traffic (replica ->
+#    primary, pooler -> instances, etc).  Without the money-app rule, the
+#    app-to-data egress allow has no matching ingress and connections drop.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: {{ include "money.fullname" . }}-cnpg-operator-to-pg
+  name: {{ include "money.fullname" . }}-pg-ingress
   labels:
     {{- include "money.labels" . | nindent 4 }}
 spec:
@@ -188,6 +210,7 @@ spec:
     matchLabels:
       cnpg.io/cluster: {{ include "money.pg.fullname" . }}
   ingress:
+    # CNPG operator from cnpg-system
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: cnpg-system
@@ -196,6 +219,42 @@ spec:
             - { port: "5432", protocol: TCP }
             - { port: "8000", protocol: TCP }   # /metrics + /healthz
             - { port: "9187", protocol: TCP }   # postgres-exporter
+    # money app pods (api/worker/migrate) in this namespace
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/component
+              operator: In
+              values: ["api", "worker", "migrate"]
+      toPorts:
+        - ports:
+            - { port: "5432", protocol: TCP }
+    # Intra-Postgres-cluster traffic (replica streaming, etc).
+    - fromEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "money.pg.fullname" . }}
+---
+# 6b) Redis ingress — api + worker need to reach it.  Same situation as
+#     postgres: default-deny selects redis (instance label match) and
+#     denies all ingress unless explicitly allowed here.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "money.fullname" . }}-redis-ingress
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: redis
+  ingress:
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/component
+              operator: In
+              values: ["api", "worker"]
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.redis.port }}", protocol: TCP }
 ---
 {{- if .Values.postgres.backup.enabled }}
 # 7) postgres -> S3 (barman base-backup + WAL archive). FQDN selector keeps it
