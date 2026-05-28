@@ -71,11 +71,13 @@ redis:
   storage:
     storageClass: longhorn-r1
 
-# P0: the scaffolded CiliumNetworkPolicies have gaps (no ingress-nginx->web,
-# no api->redis ingress, migrate job excluded from Postgres egress). Disable for
-# the first bring-up; write correct default-deny policies in P1.
+# Network policies — full default-deny + scoped allows for money. Template
+# rewritten in the 2026-05-28 security pass: DNS proxy enabled (cloudflared
+# FQDN egress to *.cloudflare.com works), intra-namespace egress allowed
+# (web -> api), postgres + redis ingress allows for api/worker/migrate.
+# Rollback: set enabled=false, push — ArgoCD removes all CNPs in ~60s.
 networkPolicy:
-  enabled: false
+  enabled: true
   ollamaCidr: "192.168.216.0/24"
 
 # apps-prod has no Prometheus operator yet, so the ServiceMonitor CRD is absent.
