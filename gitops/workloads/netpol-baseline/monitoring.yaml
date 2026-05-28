@@ -20,6 +20,16 @@ spec:
         - ports:
             - { port: "53", protocol: UDP }
             - { port: "53", protocol: TCP }
+          # rules.dns.matchPattern enables Cilium's DNS proxy so toFQDNs
+          # rules (alertmanager-egress-discord, blackbox-egress-world,
+          # resource-digest-egress) can map domain names to IPs that the
+          # pod actually connects to. Without this, the pod gets a raw
+          # IP back and Cilium drops the subsequent connection — manifests
+          # as "Policy denied" in hubble.observe even when the toFQDNs
+          # rule looks correct in the manifest.
+          rules:
+            dns:
+              - matchPattern: "*"
     # Intra-namespace (Prom -> Alertmanager, Grafana -> Loki, etc.)
     - toEndpoints: [ {} ]
     # kube-prometheus-stack operator + kube-state-metrics talk to the API
@@ -32,6 +42,9 @@ spec:
             - { port: "6443", protocol: TCP }
 ---
 # Prometheus needs to scrape every namespace + every node — keep wide.
+# ALSO needs intra-namespace ingress on 9090 so Grafana datasource queries
+# and resource-digest's PromQL queries work; without this, default-deny
+# blocks them and they hang silently.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -41,6 +54,13 @@ spec:
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: prometheus
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - { port: "9090", protocol: TCP }
   egress:
     - toEntities: ["all"]   # any cluster IP + node IPs (kubelet/cAdvisor)
 ---
@@ -58,7 +78,10 @@ spec:
     - toEntities: ["host", "remote-node"]
     - toEndpoints: [ {} ]   # Loki in-ns
 ---
-# ingress-nginx -> Grafana (grafana.apps.giddyland.net public TLS).
+# ingress-nginx -> Grafana (grafana.apps.giddyland.net public TLS) AND
+# intra-namespace Prometheus -> Grafana scrape (port 3000 /metrics).
+# Without the prom rule, Prom shows grafana as DOWN (Cilium drops the
+# scrape because once *any* policy selects grafana, default-deny applies).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -72,6 +95,10 @@ spec:
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: ingress-nginx
+        # Intra-namespace Prometheus scrape of grafana /metrics.
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
       toPorts:
         - ports:
             - { port: "3000", protocol: TCP }
@@ -113,7 +140,9 @@ spec:
             - { port: "443", protocol: TCP }
 ---
 # resource-digest CronJob egress: Prometheus (in-ns, already in default-deny)
-# + Discord webhook.
+# + Discord webhook. Selector uses `app: resource-digest` (a stable label
+# added to the CronJob's pod template) — not the auto-generated
+# `job-name: resource-digest-<TS>` which changes every 15 min.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -122,7 +151,7 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      job-name: resource-digest
+      app: resource-digest
   egress:
     - toFQDNs:
         - { matchPattern: "*.discord.com" }
@@ -130,3 +159,23 @@ spec:
       toPorts:
         - ports:
             - { port: "443", protocol: TCP }
+---
+# blackbox-exporter egress — currently probes
+# `https://money.apps.giddyland.net/login` (see Probe `money-endpoints`).
+# Allow generic HTTPS egress so additional probe targets work without
+# more policy churn. Tighten to specific FQDN list once probe set stabilizes.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: monitoring-blackbox-egress-world
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: blackbox-exporter
+  egress:
+    - toEntities: ["world"]
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
+            - { port: "80",  protocol: TCP }

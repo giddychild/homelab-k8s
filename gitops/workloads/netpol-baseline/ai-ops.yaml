@@ -20,6 +20,13 @@ spec:
         - ports:
             - { port: "53", protocol: UDP }
             - { port: "53", protocol: TCP }
+          # Enable Cilium DNS proxy so toFQDNs rules (Ollama registry,
+          # n8n world egress with FQDN-resolved IPs) actually match.
+          # Without this, hubble.observe shows "Policy denied" on the
+          # resolved IP even though the manifest FQDN rule looks correct.
+          rules:
+            dns:
+              - matchPattern: "*"
     # Intra-namespace (open-webui -> ollama).
     - toEndpoints: [ {} ]
     # Open WebUI uses the kube API for some discovery modes; Ollama doesn't

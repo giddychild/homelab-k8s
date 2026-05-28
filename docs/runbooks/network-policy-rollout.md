@@ -92,6 +92,37 @@ kubectl delete cnp -n learnquest --all
 
 ## Gotchas learned during rollout (2026-05-28)
 
+### Cilium `toFQDNs` silently fails without DNS-proxy rule
+
+Symptom: a CNP allows egress to `*.discord.com` (or any FQDN), the
+manifest validates as `True`, but hubble.observe shows `Policy denied
+DROPPED` on the resolved IP (162.159.x.x for Discord) when the pod
+tries to connect. In the resource-digest CronJob, this looked like a
+silent `urllib.error.URLError: <urlopen error timed out>`.
+
+Root cause: Cilium's `toFQDNs` rules need Cilium's **DNS proxy** to
+intercept queries and map FQDNs to the IPs the pod actually connects
+to. Without it, the pod gets a raw IP back; Cilium has no idea that IP
+corresponds to discord.com, and `toFQDNs` never matches.
+
+Fix: add `rules.dns.matchPattern: "*"` to the kube-dns egress rule in
+default-deny:
+
+```yaml
+egress:
+  - toEndpoints:
+      - matchLabels:
+          k8s:io.kubernetes.pod.namespace: kube-system
+          k8s-app: kube-dns
+    toPorts:
+      - ports: [ { port: "53", protocol: UDP }, { port: "53", protocol: TCP } ]
+        rules:
+          dns:
+            - matchPattern: "*"
+```
+
+Now in vault.yaml is N/A, monitoring/ai-ops/argocd.yaml have it.
+
 ### Vault → kube-apiserver egress is REQUIRED
 
 Symptom: minutes after applying `vault.yaml`, ESO controller logs flood
