@@ -86,18 +86,22 @@ spec:
           containers:
             - name: kubescape
               image: quay.io/kubescape/kubescape-cli:v3.0.43
-              # Frameworks confirmed valid in Kubescape v3.0.43 regolibrary:
-              # nsa, mitre, armobest, allcontrols.  `allcontrols` is the
-              # superset that includes the CIS Kubernetes Benchmark
-              # controls — so we get CIS coverage without depending on the
-              # CIS framework name which has shifted between versions
-              # (cis-v1.10 / cis-v1.23.0 both rejected by v3.0.43).
-              # To verify what IS available in your installed version:
-              #   kubectl run ksls --rm -it --image=quay.io/kubescape/kubescape-cli:v3.0.43 -- list frameworks
+              # Frameworks valid in Kubescape v3.0.43 (verified via
+              # `kubescape list frameworks`):
+              #   NSA, MITRE, ArmoBest, AllControls, DevOpsBest, SOC2,
+              #   cis-v1.10.0, cis-v1.12.0 (vanilla k8s)
+              #   cis-aks-t1.2.0, cis-aks-t1.8.0 (AKS)
+              #   cis-eks-t1.7.0, cis-eks-t1.8.0 (EKS)
+              # Names ARE case-sensitive (PascalCase for the curated ones).
+              # cis-v1.12.0 is the newest CIS Benchmark for vanilla k8s.
+              # To re-check on a future image bump:
+              #   kubectl run ksls --rm -it --restart=Never \
+              #     --image=quay.io/kubescape/kubescape-cli:vX.Y.Z \
+              #     --command -- kubescape list frameworks
               args:
                 - scan
                 - framework
-                - nsa,mitre,armobest,allcontrols
+                - NSA,MITRE,ArmoBest,cis-v1.12.0
                 - --format=pretty-printer
                 - --verbose
                 - --logger=info
@@ -142,7 +146,7 @@ spec:
           args:
             - scan
             - framework
-            - nsa,mitre,armobest,allcontrols
+            - NSA,MITRE,ArmoBest,cis-v1.12.0
             - --format=pretty-printer
             - --verbose
             - --logger=info
