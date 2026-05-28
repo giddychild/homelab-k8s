@@ -22,6 +22,14 @@ spec:
             - { port: "53", protocol: TCP }
     # Intra-namespace (Prom -> Alertmanager, Grafana -> Loki, etc.)
     - toEndpoints: [ {} ]
+    # kube-prometheus-stack operator + kube-state-metrics talk to the API
+    # server constantly. Without this, the operator can't manage Prom/AM
+    # CRDs and KSM can't list workloads.  (Prometheus's scrape policy below
+    # is broader still; this default-deny edge is for the OTHER pods.)
+    - toEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP }
 ---
 # Prometheus needs to scrape every namespace + every node — keep wide.
 apiVersion: cilium.io/v2
