@@ -149,5 +149,14 @@ email:
   smtpUser: ""        # e.g. your.account@gmail.com
   smtpFrom: ""        # e.g. "Money <your.account@gmail.com>"
   startTls: true
+# Nightly maintenance CronJob. DISABLED by default — the original entrypoint
+# (`app.manage nightly`) was never implemented and crash-looped every night.
+# The monthly AI review now runs from ARQ's own cron in the worker. Enable this
+# only after wiring `command` to a real script.
+maintenance:
+  enabled: false
+  schedule: "30 2 * * *"
+  command: ["python", "-m", "app.manage", "nightly"]
+
 # Base URL used in reset-link emails (the public hostname).
 publicBaseUrl: "https://money.giddyland.net"

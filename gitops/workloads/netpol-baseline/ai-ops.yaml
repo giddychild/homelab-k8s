@@ -110,3 +110,48 @@ spec:
       toPorts:
         - ports:
             - { port: "443", protocol: TCP }
+---
+# n8n is also in ai-ops — publicly exposed at n8n.apps.giddyland.net
+# (container port 5678). Without an allow rule, default-deny breaks n8n.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ai-ops-allow-ingress-to-n8n
+  namespace: ai-ops
+spec:
+  endpointSelector:
+    matchLabels:
+      app: n8n
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+      toPorts:
+        - ports:
+            - { port: "5678", protocol: TCP }
+    # LAN admin access to n8n UI (same pattern as Vault/Grafana/Ollama).
+    - fromCIDR:
+        - 192.168.216.0/24
+      toPorts:
+        - ports:
+            - { port: "5678", protocol: TCP }
+---
+# n8n executes user-defined workflows that call third-party APIs (Discord,
+# Anthropic, SaaS webhooks, anything). Enumerating every endpoint isn't
+# practical — broad `world` egress on 80/443 is the honest choice; tighten
+# to an FQDN allow-list once the active workflow set is audited.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ai-ops-n8n-egress-world
+  namespace: ai-ops
+spec:
+  endpointSelector:
+    matchLabels:
+      app: n8n
+  egress:
+    - toEntities: ["world"]
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
+            - { port: "80",  protocol: TCP }
