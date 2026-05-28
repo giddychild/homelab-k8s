@@ -90,6 +90,28 @@ kubectl delete cnp -n money --all
 kubectl delete cnp -n learnquest --all
 ```
 
+## Gotchas learned during rollout (2026-05-28)
+
+### Vault → kube-apiserver egress is REQUIRED
+
+Symptom: minutes after applying `vault.yaml`, ESO controller logs flood
+with `ClusterSecretStore "vault-backend" is not ready`, and Vault returns
+`403 permission denied` on `PUT /v1/auth/kubernetes/login`.
+
+Root cause: Vault's Kubernetes auth backend validates client SA tokens by
+calling **TokenReview** on kube-apiserver. The original default-deny only
+allowed Vault's egress to kube-dns + intra-ns — kube-apiserver was blocked,
+so every ESO login failed.
+
+Fix (now in the manifest): added `toEntities: ["kube-apiserver"]` egress to
+the vault-default-deny rule. Same pattern preemptively added to
+`monitoring.yaml` (operator + KSM need apiserver) and `ai-ops.yaml`
+(harmless safety net). `argocd.yaml` already had it (ArgoCD applies
+manifests against the apiserver constantly).
+
+Recovery time when this fires: CSS returns Ready=True ~30s after the
+policy fix lands; all ExternalSecrets re-reconcile within ~60s.
+
 ## What this does NOT cover
 
 - `kube-system`, `cnpg-system`, `external-secrets`, `cert-manager`,

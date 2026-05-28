@@ -22,6 +22,12 @@ spec:
             - { port: "53", protocol: TCP }
     # Intra-namespace (open-webui -> ollama).
     - toEndpoints: [ {} ]
+    # Open WebUI uses the kube API for some discovery modes; Ollama doesn't
+    # need it but the cost of allowing is zero. Same Vault lesson learned.
+    - toEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP }
 ---
 # ingress-nginx -> open-webui (the chat.apps.giddyland.net path).
 apiVersion: cilium.io/v2

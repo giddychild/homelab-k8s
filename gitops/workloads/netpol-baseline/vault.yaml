@@ -28,6 +28,16 @@ spec:
         - ports:
             - { port: "8200", protocol: TCP }
             - { port: "8201", protocol: TCP }
+    # Vault -> kube-apiserver. REQUIRED for Vault's Kubernetes auth backend:
+    # on every ESO login, Vault calls TokenReview on kube-apiserver to verify
+    # the SA token before issuing its own token. Without this egress, every
+    # ESO request gets `403 permission denied` from the k8s auth method.
+    # `kube-apiserver` is a Cilium built-in entity that resolves to the
+    # control-plane API endpoints (VIP + per-CP node IPs).
+    - toEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP }
 ---
 # Allow ESO controller (external-secrets ns) -> vault:8200.  This is the ONLY
 # legit consumer of the Vault API in the cluster.  Everything else uses the
