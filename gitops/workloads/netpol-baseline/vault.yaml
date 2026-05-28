@@ -1,0 +1,88 @@
+# Default-deny + scoped allows for the vault namespace.  Vault is the crown
+# jewel — every secret in the cluster comes through here.  Before this:
+# any compromised pod cluster-wide could hit vault-0:8200 directly.
+# After: only ESO (external-secrets) talks to Vault on 8200; CSI-PV/IP echo
+# stays internal; metrics scraping from Prometheus allowed.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vault-default-deny
+  namespace: vault
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+    # Intra-namespace: vault-0 to itself + raft peers (single-node now but
+    # leaves room for HA later). Cluster port 8201 for raft.
+    - toEndpoints: [ {} ]
+      toPorts:
+        - ports:
+            - { port: "8200", protocol: TCP }
+            - { port: "8201", protocol: TCP }
+---
+# Allow ESO controller (external-secrets ns) -> vault:8200.  This is the ONLY
+# legit consumer of the Vault API in the cluster.  Everything else uses the
+# Kubernetes Secret that ESO writes.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vault-allow-eso
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: external-secrets
+      toPorts:
+        - ports:
+            - { port: "8200", protocol: TCP }
+---
+# Allow Prometheus scrape of vault metrics (operator surface only).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vault-allow-prom-scrape
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - { port: "8200", protocol: TCP }
+---
+# Allow LAN admin (CLI from mgmt-jump on the homelab subnet) to reach the
+# Vault UI/API on the LoadBalancer IP.  Cilium L7 not used here — just CIDR.
+# This rule is what lets `vault login` from mgmt-jump still work.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vault-allow-lan-admin
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+  ingress:
+    - fromCIDR:
+        - 192.168.216.0/24      # homelab LAN incl. mgmt-jump + LB-IPAM range
+      toPorts:
+        - ports:
+            - { port: "8200", protocol: TCP }

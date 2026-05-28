@@ -1,5 +1,10 @@
 {{- if .Values.networkPolicy.enabled }}
-# Default-deny for all money pods; explicit allows below.
+# Full default-deny + explicit-allow zero-trust for the money namespace.
+# Closes the gaps the v1 scaffold had: ingress-nginx->web, cloudflared->web,
+# migrate->postgres, CNPG operator->postgres, postgres->S3 (barman), and DNS.
+# Cilium CRDs (cilium.io/v2). Each policy is the minimum allow for one edge.
+---
+# 1) Default-deny: ingress none, egress DNS only.  Every other allow is additive.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -12,19 +17,98 @@ spec:
       app.kubernetes.io/instance: {{ .Release.Name }}
   ingress: []
   egress:
-    # Allow DNS to kube-dns for every pod.
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
             k8s-app: kube-dns
       toPorts:
         - ports:
-            - port: "53"
-              protocol: UDP
-            - port: "53"
-              protocol: TCP
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
 ---
-# web -> api
+# 2) ingress-nginx -> web (the LAN-served path; web also serves the BFF proxy
+#    that calls api internally, so api stays cluster-internal only).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "money.fullname" . }}-ingress-to-web
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: web
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.web.port }}", protocol: TCP }
+---
+{{- if .Values.cloudflare.tunnelEnabled }}
+# 2b) cloudflared -> web (Cloudflare Tunnel currently points the public hostname
+#     at the ingress; if you flip it to point directly at the money web service,
+#     this is what lets it through. Harmless to keep either way.)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "money.fullname" . }}-cloudflared-to-web
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: web
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: cloudflared
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.web.port }}", protocol: TCP }
+---
+# 2c) cloudflared egress: to ingress-nginx (the documented routing) + to
+#     Cloudflare's edge (FQDN selector — Cilium DNS-aware policy).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "money.fullname" . }}-cloudflared-egress
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: cloudflared
+  egress:
+    # ingress-nginx (in case the tunnel hits the ingress, not web directly)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+      toPorts:
+        - ports:
+            - { port: "80",  protocol: TCP }
+            - { port: "443", protocol: TCP }
+    # web service direct
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: web
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.web.port }}", protocol: TCP }
+    # Cloudflare edge — tunnel uses 7844 (QUIC/h2) + 443 fallback.
+    - toFQDNs:
+        - { matchPattern: "*.cloudflare.com" }
+        - { matchPattern: "*.cftunnel.com" }
+        - { matchPattern: "*.argotunnel.com" }
+      toPorts:
+        - ports:
+            - { port: "443",  protocol: TCP }
+            - { port: "7844", protocol: TCP }
+            - { port: "7844", protocol: UDP }
+---
+{{- end }}
+# 3) web -> api (BFF proxy in web container forwards browser calls to api).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -41,10 +125,11 @@ spec:
             app.kubernetes.io/component: web
       toPorts:
         - ports:
-            - port: "{{ .Values.api.port }}"
-              protocol: TCP
+            - { port: "{{ .Values.api.port }}", protocol: TCP }
 ---
-# api + worker -> postgres + redis
+# 4) api + worker + migrate -> postgres + redis.
+#    "migrate" was excluded from the v1 scaffold — Alembic migrations PreSync
+#    Job needs postgres or ArgoCD sync wedges. Added here.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -56,24 +141,22 @@ spec:
     matchExpressions:
       - key: app.kubernetes.io/component
         operator: In
-        values: ["api", "worker"]
+        values: ["api", "worker", "migrate"]
   egress:
     - toEndpoints:
         - matchLabels:
             cnpg.io/cluster: {{ include "money.pg.fullname" . }}
       toPorts:
         - ports:
-            - port: "5432"
-              protocol: TCP
+            - { port: "5432", protocol: TCP }
     - toEndpoints:
         - matchLabels:
             app.kubernetes.io/component: redis
       toPorts:
         - ports:
-            - port: "{{ .Values.redis.port }}"
-              protocol: TCP
+            - { port: "{{ .Values.redis.port }}", protocol: TCP }
 ---
-# worker -> Ollama on the LAN (egress to CIDR) for optional AI.
+# 5) worker -> Ollama on the homelab LAN (the AI factory's offline pipeline).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -89,6 +172,74 @@ spec:
         - {{ .Values.networkPolicy.ollamaCidr }}
       toPorts:
         - ports:
-            - port: "11434"
-              protocol: TCP
+            - { port: "11434", protocol: TCP }
+---
+# 6) CNPG operator (cnpg-system ns) -> postgres pods. Operator does instance
+#    bootstrap, failover, switchover, status checks — without this it can't
+#    manage the cluster and pgbench loops emit "connection refused".
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "money.fullname" . }}-cnpg-operator-to-pg
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ include "money.pg.fullname" . }}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - { port: "5432", protocol: TCP }
+            - { port: "8000", protocol: TCP }   # /metrics + /healthz
+            - { port: "9187", protocol: TCP }   # postgres-exporter
+---
+{{- if .Values.postgres.backup.enabled }}
+# 7) postgres -> S3 (barman base-backup + WAL archive). FQDN selector keeps it
+#    tight: only AWS S3 endpoints, only 443.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "money.fullname" . }}-pg-to-s3
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ include "money.pg.fullname" . }}
+  egress:
+    - toFQDNs:
+        - { matchPattern: "s3.*.amazonaws.com" }
+        - { matchPattern: "*.s3.*.amazonaws.com" }
+        - { matchPattern: "*.s3.amazonaws.com" }
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
+{{- end }}
+---
+# 8) Prometheus scrape — money has a ServiceMonitor (when enabled). Allow
+#    kube-prometheus-stack to scrape api + worker /metrics. No-op if SM is off.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "money.fullname" . }}-prom-scrape
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values: ["api", "worker"]
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.api.port }}", protocol: TCP }
 {{- end }}
