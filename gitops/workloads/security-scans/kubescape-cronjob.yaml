@@ -38,6 +38,9 @@ rules:
   - apiGroups: ["apps", "batch", "extensions", "networking.k8s.io", "policy",
                 "rbac.authorization.k8s.io", "autoscaling", "storage.k8s.io",
                 "apiextensions.k8s.io", "admissionregistration.k8s.io",
+                "apiregistration.k8s.io",      # CIS-1.2.x checks need apiservices
+                "coordination.k8s.io",          # leases (leader election)
+                "discovery.k8s.io",             # endpointslices
                 "cilium.io", "external-secrets.io", "argoproj.io",
                 "cert-manager.io", "monitoring.coreos.com", "velero.io",
                 "cnpg.io", "longhorn.io"]
