@@ -118,10 +118,15 @@ spec:
         - ports:
             - { port: "{{ .Values.web.port }}", protocol: TCP }
     # Cloudflare edge — tunnel uses 7844 (QUIC/h2) + 443 fallback.
+    # CRITICAL: the per-tunnel endpoint is *.cfargotunnel.com (note the
+    # `cf-argo-tunnel` — earlier patterns like `*.cftunnel.com` are wrong
+    # and cause HTTP 530 from Cloudflare's edge because cloudflared can't
+    # establish the tunnel back-channel).
     - toFQDNs:
         - { matchPattern: "*.cloudflare.com" }
-        - { matchPattern: "*.cftunnel.com" }
-        - { matchPattern: "*.argotunnel.com" }
+        - { matchPattern: "*.cfargotunnel.com" }   # per-tunnel endpoint
+        - { matchPattern: "*.argotunnel.com" }     # regions + update
+        - { matchPattern: "*.cloudflareclient.com" }
       toPorts:
         - ports:
             - { port: "443",  protocol: TCP }
@@ -256,13 +261,20 @@ spec:
         - ports:
             - { port: "{{ .Values.redis.port }}", protocol: TCP }
 ---
-{{- if .Values.postgres.backup.enabled }}
-# 7) postgres -> S3 (barman base-backup + WAL archive). FQDN selector keeps it
-#    tight: only AWS S3 endpoints, only 443.
+# 7) Postgres egress — CRITICAL: a CNPG instance pod needs egress to
+#    kube-apiserver (the instance manager queries it for leader election,
+#    cluster status, and readiness probe responses — without it the cluster
+#    enters perpetual "Failing over"), kube-dns, intra-pg-cluster peers
+#    (streaming replication), and optionally S3 (when backup is enabled).
+#
+#    BEFORE: a separate `pg-to-s3` policy was the ONLY egress allow,
+#    which selected the postgres pods AND deny-by-defaulted everything
+#    else. Result: CNPG controller couldn't get cluster status, primary
+#    failed readiness, replicas couldn't stream → cluster collapsed.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: {{ include "money.fullname" . }}-pg-to-s3
+  name: {{ include "money.fullname" . }}-pg-egress
   labels:
     {{- include "money.labels" . | nindent 4 }}
 spec:
@@ -270,6 +282,33 @@ spec:
     matchLabels:
       cnpg.io/cluster: {{ include "money.pg.fullname" . }}
   egress:
+    # DNS to kube-dns + DNS proxy (for the S3 FQDN below).
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+          rules:
+            dns:
+              - matchPattern: "*"
+    # kube-apiserver — CNPG instance manager NEEDS this.
+    - toEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP }
+    # Intra-Postgres-cluster (streaming replication, etc).
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "money.pg.fullname" . }}
+    # CNPG operator + monitoring scrape paths back to cnpg-system.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+{{- if .Values.postgres.backup.enabled }}
+    # S3 for barman base-backup + WAL archive.
     - toFQDNs:
         - { matchPattern: "s3.*.amazonaws.com" }
         - { matchPattern: "*.s3.*.amazonaws.com" }
