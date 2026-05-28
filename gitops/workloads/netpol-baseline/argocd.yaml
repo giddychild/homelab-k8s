@@ -84,8 +84,9 @@ spec:
     matchLabels:
       app.kubernetes.io/name: argocd-server
   ingress:
-    - fromCIDR:
-        - 192.168.216.0/24
+    # fromEntities=world (NOT fromCIDR) per the LoadBalancer-SNAT gotcha
+    # documented in ai-ops.yaml.
+    - fromEntities: ["world"]
       toPorts:
         - ports:
             - { port: "8080", protocol: TCP }

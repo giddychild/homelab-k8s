@@ -1,3 +1,10 @@
+{{- if .Values.maintenance.enabled }}
+# Disabled by default: the original `app.manage nightly` entrypoint was never
+# implemented and crash-looped every night. The monthly review now runs from
+# ARQ's own cron inside the worker (see app/workers/settings.py); the other
+# nightly enqueues (materialize_recurring, embed_transactions, run_forecast)
+# are still stubs. Enable this only once `command` below points at something
+# real.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -5,8 +12,7 @@ metadata:
   labels:
     {{- include "money.labels" . | nindent 4 }}
 spec:
-  # Nightly at 02:30.
-  schedule: "30 2 * * *"
+  schedule: {{ .Values.maintenance.schedule | quote }}
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:
@@ -24,8 +30,7 @@ spec:
             - name: maintenance
               image: "{{ .Values.image.api.repository }}:{{ .Values.image.api.tag }}"
               imagePullPolicy: {{ .Values.image.pullPolicy }}
-              # Enqueues materialize_recurring + embed + forecast for all households.
-              # TODO: implement `python -m app.manage nightly` to enqueue these ARQ jobs.
-              command: ["python", "-m", "app.manage", "nightly"]
+              command: {{ .Values.maintenance.command | toJson }}
               env:
                 {{- include "money.appEnv" . | nindent 16 }}
+{{- end }}

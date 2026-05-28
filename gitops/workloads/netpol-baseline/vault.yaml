@@ -59,6 +59,28 @@ spec:
         - ports:
             - { port: "8200", protocol: TCP }
 ---
+# Allow ingress-nginx -> vault:8200.  The ClusterSecretStore points ESO at the
+# PUBLIC hostname (https://vault.apps.giddyland.net), so every ESO login lands
+# on ingress-nginx first and is then proxied to vault-0:8200 cross-namespace.
+# Without this policy: nginx logs `upstream timed out (110)`, ESO returns
+# `SecretSyncedError`, and every dependent ExternalSecret goes stale.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vault-allow-ingress-nginx
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+      toPorts:
+        - ports:
+            - { port: "8200", protocol: TCP }
+---
 # Allow Prometheus scrape of vault metrics (operator surface only).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -79,8 +101,11 @@ spec:
             - { port: "8200", protocol: TCP }
 ---
 # Allow LAN admin (CLI from mgmt-jump on the homelab subnet) to reach the
-# Vault UI/API on the LoadBalancer IP.  Cilium L7 not used here — just CIDR.
-# This rule is what lets `vault login` from mgmt-jump still work.
+# Vault UI/API on the LoadBalancer IP. Uses `fromEntities: ["world"]` not
+# fromCIDR — see ai-ops-allow-lan-to-ollama for the same Cilium quirk
+# (LoadBalancer Cluster-mode SNAT makes LAN source IPs invisible to CIDR
+# rules; world entity is the correct selector). Practical scope is LAN
+# because the Orbi doesn't port-forward to the LB IP.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -91,8 +116,7 @@ spec:
     matchLabels:
       app.kubernetes.io/name: vault
   ingress:
-    - fromCIDR:
-        - 192.168.216.0/24      # homelab LAN incl. mgmt-jump + LB-IPAM range
+    - fromEntities: ["world"]
       toPorts:
         - ports:
             - { port: "8200", protocol: TCP }
