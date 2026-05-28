@@ -77,6 +77,9 @@ externalSecrets:
   discordWebhook: false
   # Pull an `smtp_password` (password-reset emails). Enable once it's in Vault.
   smtpPassword: false
+  # Pull `storage_access_key` + `storage_secret_key` for in-cluster MinIO.
+  # Enable once both are in Vault (see docs/runbooks/money-receipts-storage.md).
+  storage: false
 
 # CloudNativePG cluster.
 postgres:
@@ -151,3 +154,29 @@ email:
   startTls: true
 # Base URL used in reset-link emails (the public hostname).
 publicBaseUrl: "https://money.giddyland.net"
+
+# In-cluster MinIO for project-expense receipt photos. Disabled by default;
+# enable AFTER storing storage_access_key + storage_secret_key in Vault +
+# externalSecrets.storage: true. See docs/runbooks/money-receipts-storage.md.
+minio:
+  enabled: false
+  image: minio/minio:RELEASE.2026-05-01T00-00-00Z
+  storage:
+    size: 20Gi
+    storageClass: longhorn-r2
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Receipts storage knobs read by the API. When minio.enabled is true, the
+# endpoint URL should point at the in-cluster MinIO Service.
+storage:
+  enabled: false
+  endpointUrl: ""                   # e.g. http://money-minio.money.svc.cluster.local:9000
+  region: "us-east-1"               # MinIO ignores it but the AWS SDK requires one
+  bucket: "money-receipts"
+  maxUploadBytes: 10485760          # 10 MB per receipt
