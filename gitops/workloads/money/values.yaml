@@ -75,6 +75,8 @@ externalSecrets:
   credentialKey: false
   # Pull a `discord_webhook` (login/sign-up alerts). Enable once it's in Vault.
   discordWebhook: false
+  # Pull an `smtp_password` (password-reset emails). Enable once it's in Vault.
+  smtpPassword: false
 
 # CloudNativePG cluster.
 postgres:
@@ -136,3 +138,16 @@ cloudflare:
   image: cloudflare/cloudflared:2026.5.2
   replicas: 2
   tunnelTokenVaultPath: "money/cf-tunnel"
+
+# Email (SMTP) for password-reset links. Disabled by default. Enable AFTER
+# storing smtp_password in Vault + externalSecrets.smtpPassword: true.
+# See docs/runbooks/money-email-reset.md. Default host = Gmail SMTP.
+email:
+  enabled: false
+  smtpHost: "smtp.gmail.com"
+  smtpPort: 587
+  smtpUser: ""        # e.g. your.account@gmail.com
+  smtpFrom: ""        # e.g. "Money <your.account@gmail.com>"
+  startTls: true
+# Base URL used in reset-link emails (the public hostname).
+publicBaseUrl: "https://money.giddyland.net"

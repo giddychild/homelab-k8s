@@ -93,4 +93,25 @@ app.kubernetes.io/component: {{ .component }}
       name: {{ .Values.externalSecrets.targetSecretName }}
       key: discord_webhook
       optional: true
+# Email (SMTP) for password-reset links. Disabled unless email.enabled + creds.
+- name: EMAIL_ENABLED
+  value: {{ .Values.email.enabled | default false | quote }}
+- name: SMTP_HOST
+  value: {{ .Values.email.smtpHost | default "" | quote }}
+- name: SMTP_PORT
+  value: {{ .Values.email.smtpPort | default 587 | quote }}
+- name: SMTP_USER
+  value: {{ .Values.email.smtpUser | default "" | quote }}
+- name: SMTP_FROM
+  value: {{ .Values.email.smtpFrom | default "" | quote }}
+- name: SMTP_STARTTLS
+  value: {{ .Values.email.startTls | default true | quote }}
+- name: PUBLIC_BASE_URL
+  value: {{ .Values.publicBaseUrl | default "https://money.giddyland.net" | quote }}
+- name: SMTP_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.externalSecrets.targetSecretName }}
+      key: smtp_password
+      optional: true
 {{- end -}}
