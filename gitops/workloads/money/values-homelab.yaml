@@ -17,6 +17,17 @@ externalSecrets:
   # then ESO syncs it and saved bill logins (username/password) get encrypted.
   # Leave false until provisioned, or ESO errors on the missing Vault property.
   credentialKey: true
+  # smtp_password is in Vault (Gmail app password) → sync it for email reset.
+  smtpPassword: true
+
+# Email-based password reset via Gmail SMTP.
+email:
+  enabled: true
+  smtpHost: "smtp.gmail.com"
+  smtpPort: 587
+  smtpUser: "seyi.obadee@gmail.com"
+  smtpFrom: "Money <seyi.obadee@gmail.com>"
+  startTls: true
 
 api:
   replicas: 2
