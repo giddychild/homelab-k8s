@@ -86,17 +86,18 @@ spec:
           containers:
             - name: kubescape
               image: quay.io/kubescape/kubescape-cli:v3.0.43
-              # Frameworks: nsa, mitre, armobest are Kubescape-native; CIS
-              # Kubernetes Benchmark is `cis-v1.23.0` in Kubescape's
-              # regolibrary IDs (named by the k8s-version baseline the CIS
-              # benchmark targets, NOT by CIS benchmark version number).
-              # `--format pretty-printer` is human-readable in pod logs;
-              # switch to json to parse. Exit 0 = green, 1 = findings —
-              # we let it fail the Job so CronJob status reflects findings.
+              # Frameworks confirmed valid in Kubescape v3.0.43 regolibrary:
+              # nsa, mitre, armobest, allcontrols.  `allcontrols` is the
+              # superset that includes the CIS Kubernetes Benchmark
+              # controls — so we get CIS coverage without depending on the
+              # CIS framework name which has shifted between versions
+              # (cis-v1.10 / cis-v1.23.0 both rejected by v3.0.43).
+              # To verify what IS available in your installed version:
+              #   kubectl run ksls --rm -it --image=quay.io/kubescape/kubescape-cli:v3.0.43 -- list frameworks
               args:
                 - scan
                 - framework
-                - nsa,mitre,armobest,cis-v1.23.0
+                - nsa,mitre,armobest,allcontrols
                 - --format=pretty-printer
                 - --verbose
                 - --logger=info
@@ -141,7 +142,7 @@ spec:
           args:
             - scan
             - framework
-            - nsa,mitre,armobest,cis-v1.23.0
+            - nsa,mitre,armobest,allcontrols
             - --format=pretty-printer
             - --verbose
             - --logger=info
