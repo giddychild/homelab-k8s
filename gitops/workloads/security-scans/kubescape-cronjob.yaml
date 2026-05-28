@@ -86,15 +86,17 @@ spec:
           containers:
             - name: kubescape
               image: quay.io/kubescape/kubescape-cli:v3.0.43
-              # `scan framework cis-v1.10` covers the CIS Kubernetes Benchmark
-              # (the same one kube-bench would run).  `--format pretty-printer`
-              # is human-readable in pod logs; switch to `json` if you want to
-              # parse it.  Exit code is 0 on green / 1 on findings — we let
-              # it fail the Job on findings so the CronJob status reflects it.
+              # Frameworks: nsa, mitre, armobest are Kubescape-native; CIS
+              # Kubernetes Benchmark is `cis-v1.23.0` in Kubescape's
+              # regolibrary IDs (named by the k8s-version baseline the CIS
+              # benchmark targets, NOT by CIS benchmark version number).
+              # `--format pretty-printer` is human-readable in pod logs;
+              # switch to json to parse. Exit 0 = green, 1 = findings —
+              # we let it fail the Job so CronJob status reflects findings.
               args:
                 - scan
                 - framework
-                - cis-v1.10,nsa,mitre,armobest
+                - nsa,mitre,armobest,cis-v1.23.0
                 - --format=pretty-printer
                 - --verbose
                 - --logger=info
@@ -139,7 +141,7 @@ spec:
           args:
             - scan
             - framework
-            - cis-v1.10,nsa,mitre,armobest
+            - nsa,mitre,armobest,cis-v1.23.0
             - --format=pretty-printer
             - --verbose
             - --logger=info
