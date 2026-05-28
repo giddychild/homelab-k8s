@@ -19,6 +19,11 @@ spec:
         - ports:
             - { port: "53", protocol: UDP }
             - { port: "53", protocol: TCP }
+          # Enable Cilium DNS proxy so toFQDNs rules (GitHub, Discord)
+          # actually match — see monitoring.yaml for the gotcha details.
+          rules:
+            dns:
+              - matchPattern: "*"
     - toEndpoints: [ {} ]   # intra-ns (server -> repo-server -> redis, etc.)
     # ArgoCD applies manifests against the kube API — needs apiserver egress.
     - toEntities: ["kube-apiserver"]
