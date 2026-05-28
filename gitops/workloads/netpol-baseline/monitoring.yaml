@@ -87,8 +87,9 @@ spec:
     matchLabels:
       app.kubernetes.io/name: grafana
   ingress:
-    - fromCIDR:
-        - 192.168.216.0/24
+    # fromEntities=world (NOT fromCIDR) per the LoadBalancer-SNAT gotcha
+    # documented in ai-ops.yaml.
+    - fromEntities: ["world"]
       toPorts:
         - ports:
             - { port: "3000", protocol: TCP }

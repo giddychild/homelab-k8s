@@ -75,8 +75,20 @@ spec:
         - ports:
             - { port: "11434", protocol: TCP }
 ---
-# LAN access to Ollama on its LB IP (192.168.216.240).  mgmt-jump uses this
+# LAN access to Ollama on its LB IP (192.168.216.240). mgmt-jump uses this
 # for direct CLI calls without going through the cluster ingress.
+#
+# IMPORTANT: must be `fromEntities: ["world"]`, NOT `fromCIDR`. With
+# externalTrafficPolicy=Cluster on the LoadBalancer service, Cilium SNATs
+# the LAN source IP to a node IP before the packet hits the pod — and to
+# Cilium's identity model, that translated traffic resolves to the `world`
+# entity, not the original CIDR. Verified live: fromCIDR rule dropped the
+# traffic; fromEntities=[world] passed it.
+#
+# Tradeoff: this allows ANY external IP to reach ollama:11434 (including
+# from beyond the LAN if the LB IP were ever exposed). Today the LB IP is
+# only reachable from inside the LAN because the Orbi doesn't port-forward,
+# so practical scope = LAN.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -87,8 +99,7 @@ spec:
     matchLabels:
       app.kubernetes.io/name: ollama
   ingress:
-    - fromCIDR:
-        - 192.168.216.0/24
+    - fromEntities: ["world"]
       toPorts:
         - ports:
             - { port: "11434", protocol: TCP }
@@ -130,8 +141,8 @@ spec:
         - ports:
             - { port: "5678", protocol: TCP }
     # LAN admin access to n8n UI (same pattern as Vault/Grafana/Ollama).
-    - fromCIDR:
-        - 192.168.216.0/24
+    # fromEntities=world per the LoadBalancer-SNAT gotcha documented above.
+    - fromEntities: ["world"]
       toPorts:
         - ports:
             - { port: "5678", protocol: TCP }
