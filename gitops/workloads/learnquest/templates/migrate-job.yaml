@@ -16,6 +16,14 @@ metadata:
 spec:
   backoffLimit: 2
   template:
+    metadata:
+      labels:
+        # Stable label so CiliumNetworkPolicy can select the migrate pod
+        # alongside api/web/worker (this chart uses `app: learnquest-<X>`,
+        # NOT `app.kubernetes.io/component`). Without it migrate has only
+        # auto-generated job-name labels, no policy matches, and pg-ingress
+        # drops the connection → "db not ready yet" timeout loop.
+        app: {{ include "learnquest.name" . }}-migrate
     spec:
       restartPolicy: Never
       imagePullSecrets: [{ name: {{ .Values.image.pullSecret }} }]

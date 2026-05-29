@@ -1,9 +1,12 @@
 {{- if .Values.networkPolicy.enabled }}
 # Full default-deny + explicit-allow zero-trust for the learnquest namespace.
-# Mirrors money's post-hotfix layout: DNS-proxy on default-deny, intra-ns
-# egress, kube-apiserver allow, explicit pg + redis ingress, comprehensive
-# pg egress (kube-api/dns/intra-pg/cnpg-system/S3), and Cloudflare FQDN
-# patterns including *.v2.argotunnel.com for QUIC edges.
+# LABEL CONVENTION: this chart labels all component pods with
+#   `app: learnquest-<component>`  (api, web, worker, redis, cloudflared,
+#   migrate — migrate label added by this hardening pass).
+# Postgres pods use `cnpg.io/cluster: learnquest-pg` (CNPG convention).
+# Selectors here MUST match that, NOT money's `app.kubernetes.io/component`
+# scheme — discovered the hard way after every selector missed and
+# default-deny silently restricted every component.
 ---
 # 1) Default-deny: ingress none, egress = DNS (with DNS proxy) +
 #    intra-namespace + kube-apiserver.
@@ -23,27 +26,20 @@ spec:
         - ports:
             - { port: "53", protocol: UDP }
             - { port: "53", protocol: TCP }
-          # Cilium DNS proxy — REQUIRED for toFQDNs rules below
-          # (cloudflared *.cfargotunnel.com / *.v2.argotunnel.com,
-          # worker -> api.anthropic.com, postgres -> S3) to actually
-          # match. Without this every FQDN-targeted connection drops
-          # silently. See docs/runbooks/network-policy-rollout.md.
           rules:
             dns:
               - matchPattern: "*"
-    # Intra-namespace egress on any port — web -> api, api -> redis svc IP,
-    # etc. Without this default-deny blocks every cross-component call.
+    # Intra-namespace egress on any port — web -> api, api -> redis svc IP.
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: {{ .Release.Namespace }}
-    # kube-apiserver egress (preemptive — CNPG + Cilium identity libs).
+    # kube-apiserver egress (CNPG + Cilium identity libs).
     - toEntities: ["kube-apiserver"]
       toPorts:
         - ports:
             - { port: "6443", protocol: TCP }
 ---
-# 2) ingress-nginx -> web (the in-cluster LAN path; Cloudflare Tunnel goes
-#    the same way per values-homelab.yaml).
+# 2) ingress-nginx -> web.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -51,7 +47,7 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/component: web
+      app: {{ include "learnquest.name" . }}-web
   ingress:
     - fromEndpoints:
         - matchLabels:
@@ -60,7 +56,7 @@ spec:
         - ports:
             - { port: "{{ .Values.web.port }}", protocol: TCP }
 ---
-# 3) web -> api (BFF proxy forwards browser /api calls to api service).
+# 3) web -> api.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -68,11 +64,11 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/component: api
+      app: {{ include "learnquest.name" . }}-api
   ingress:
     - fromEndpoints:
         - matchLabels:
-            app.kubernetes.io/component: web
+            app: {{ include "learnquest.name" . }}-web
       toPorts:
         - ports:
             - { port: "{{ .Values.api.port }}", protocol: TCP }
@@ -85,9 +81,12 @@ metadata:
 spec:
   endpointSelector:
     matchExpressions:
-      - key: app.kubernetes.io/component
+      - key: app
         operator: In
-        values: ["api", "worker", "migrate"]
+        values:
+          - {{ include "learnquest.name" . }}-api
+          - {{ include "learnquest.name" . }}-worker
+          - {{ include "learnquest.name" . }}-migrate
   egress:
     - toEndpoints:
         - matchLabels:
@@ -97,7 +96,7 @@ spec:
             - { port: "5432", protocol: TCP }
     - toEndpoints:
         - matchLabels:
-            app.kubernetes.io/component: redis
+            app: {{ include "learnquest.name" . }}-redis
       toPorts:
         - ports:
             - { port: "6379", protocol: TCP }
@@ -110,7 +109,7 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/component: worker
+      app: {{ include "learnquest.name" . }}-worker
   egress:
     - toEndpoints:
         - matchLabels:
@@ -121,8 +120,7 @@ spec:
             - { port: "11434", protocol: TCP }
 ---
 {{- if eq .Values.ai.factoryProvider "anthropic" }}
-# 5b) worker -> Anthropic API (when factoryProvider=anthropic). FQDN egress
-#     keeps it tight to api.anthropic.com only.
+# 5b) worker -> Anthropic API.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -130,7 +128,7 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/component: worker
+      app: {{ include "learnquest.name" . }}-worker
   egress:
     - toFQDNs:
         - { matchName: "api.anthropic.com" }
@@ -139,9 +137,7 @@ spec:
             - { port: "443", protocol: TCP }
 ---
 {{- end }}
-# 6) Postgres INGRESS — CNPG operator + money-app pods + intra-pg-cluster.
-#    Without the app-pods rule, the app-to-data egress allow has no matching
-#    ingress and connections drop on the postgres side.
+# 6) Postgres INGRESS — CNPG operator + learnquest app pods + intra-pg-cluster.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -163,9 +159,12 @@ spec:
     # learnquest app pods (api/worker/migrate) in same namespace
     - fromEndpoints:
         - matchExpressions:
-            - key: app.kubernetes.io/component
+            - key: app
               operator: In
-              values: ["api", "worker", "migrate"]
+              values:
+                - {{ include "learnquest.name" . }}-api
+                - {{ include "learnquest.name" . }}-worker
+                - {{ include "learnquest.name" . }}-migrate
       toPorts:
         - ports:
             - { port: "5432", protocol: TCP }
@@ -174,8 +173,7 @@ spec:
         - matchLabels:
             cnpg.io/cluster: {{ include "learnquest.name" . }}-pg
 ---
-# 6b) Redis ingress — api + worker (default-deny selects redis via instance
-#     label; without explicit allow, ingress drops).
+# 6b) Redis ingress — api + worker.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -183,23 +181,21 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/component: redis
+      app: {{ include "learnquest.name" . }}-redis
   ingress:
     - fromEndpoints:
         - matchExpressions:
-            - key: app.kubernetes.io/component
+            - key: app
               operator: In
-              values: ["api", "worker"]
+              values:
+                - {{ include "learnquest.name" . }}-api
+                - {{ include "learnquest.name" . }}-worker
       toPorts:
         - ports:
             - { port: "6379", protocol: TCP }
 ---
 {{- if .Values.cloudflare.tunnel.enabled }}
 # 7) cloudflared -> ingress-nginx + Cloudflare edge.
-# NOTE: learnquest's cloudflared.yaml template labels pods with
-#   { app: learnquest-cloudflared }  (NOT app.kubernetes.io/component).
-# So the selector must match `app: <name>-cloudflared`. Money's chart uses
-# `app.kubernetes.io/component: cloudflared` — different label scheme.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -218,13 +214,12 @@ spec:
             - { port: "443", protocol: TCP }
     - toEndpoints:
         - matchLabels:
-            app.kubernetes.io/component: web
+            app: {{ include "learnquest.name" . }}-web
       toPorts:
         - ports:
             - { port: "{{ .Values.web.port }}", protocol: TCP }
     # Cloudflare edge — see money's networkpolicy.yaml for the gotchas
-    # (cftunnel typo + matchPattern not spanning dots → need explicit
-    # *.v2.argotunnel.com for QUIC edges at regionN.v2.argotunnel.com).
+    # (matchPattern doesn't span dots → need *.v2.argotunnel.com).
     - toFQDNs:
         - { matchPattern: "*.cloudflare.com" }
         - { matchPattern: "*.cfargotunnel.com" }
@@ -239,10 +234,7 @@ spec:
             - { port: "7844", protocol: UDP }
 ---
 {{- end }}
-# 8) Postgres EGRESS — CNPG instance manager needs kube-apiserver +
-#    intra-pg-cluster + DNS + S3 (when backup enabled).  Same lesson as
-#    money: a policy that selects postgres pods AND only allows S3 egress
-#    locks out apiserver and breaks the cluster ("Failing over" loop).
+# 8) Postgres EGRESS — apiserver + intra-pg + dns + s3 (cond).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
