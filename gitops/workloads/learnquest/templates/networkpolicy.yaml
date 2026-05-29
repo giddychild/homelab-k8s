@@ -163,10 +163,18 @@ spec:
       toPorts:
         - ports:
             - { port: "{{ .Values.web.port }}", protocol: TCP }
+    # Cloudflare edge — same gotchas as money's cloudflared-egress (see
+    # comment block there). `*.cftunnel.com` was a typo, drop it; per-
+    # tunnel is `*.cfargotunnel.com`. Multi-level QUIC edge endpoints
+    # at `regionN.v2.argotunnel.com` need `*.v2.argotunnel.com` because
+    # Cilium matchPattern doesn't span dots.
     - toFQDNs:
         - { matchPattern: "*.cloudflare.com" }
-        - { matchPattern: "*.cftunnel.com" }
-        - { matchPattern: "*.argotunnel.com" }
+        - { matchPattern: "*.cfargotunnel.com" }    # per-tunnel endpoint
+        - { matchPattern: "*.argotunnel.com" }      # update.argotunnel.com
+        - { matchPattern: "*.v2.argotunnel.com" }   # regionN.v2 QUIC edges
+        - { matchPattern: "*.cloudflareclient.com" }
+        - { matchPattern: "*.cloudflareresearch.com" }
       toPorts:
         - ports:
             - { port: "443",  protocol: TCP }
