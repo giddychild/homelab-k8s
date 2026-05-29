@@ -16,8 +16,10 @@ spec:
     repoURL: https://github.com/giddychild/homelab-k8s
     targetRevision: main
     path: gitops/workloads/netpol-baseline
-    directory:
-      recurse: false
+    # `directory.recurse: false` was here explicitly; removed because ArgoCD
+    # strips default-valued fields on apply, so git → cluster always shows
+    # drift → root app went OutOfSync repeatedly even after syncs. recurse
+    # defaults to false, so the behavior is unchanged.
   destination:
     server: https://kubernetes.default.svc
   syncPolicy:
