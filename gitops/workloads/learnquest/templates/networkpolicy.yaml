@@ -1,10 +1,12 @@
 {{- if .Values.networkPolicy.enabled }}
 # Full default-deny + explicit-allow zero-trust for the learnquest namespace.
-# Switched from the v1 "podSelector: {}" pair (too permissive — intra-ns wide
-# open) to per-edge CiliumNetworkPolicies. FQDN egress for the AI factory
-# Anthropic API + Cloudflare Tunnel needs Cilium DNS-aware policy.
+# Mirrors money's post-hotfix layout: DNS-proxy on default-deny, intra-ns
+# egress, kube-apiserver allow, explicit pg + redis ingress, comprehensive
+# pg egress (kube-api/dns/intra-pg/cnpg-system/S3), and Cloudflare FQDN
+# patterns including *.v2.argotunnel.com for QUIC edges.
 ---
-# 1) Default-deny + DNS egress for every pod.
+# 1) Default-deny: ingress none, egress = DNS (with DNS proxy) +
+#    intra-namespace + kube-apiserver.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -21,9 +23,27 @@ spec:
         - ports:
             - { port: "53", protocol: UDP }
             - { port: "53", protocol: TCP }
+          # Cilium DNS proxy — REQUIRED for toFQDNs rules below
+          # (cloudflared *.cfargotunnel.com / *.v2.argotunnel.com,
+          # worker -> api.anthropic.com, postgres -> S3) to actually
+          # match. Without this every FQDN-targeted connection drops
+          # silently. See docs/runbooks/network-policy-rollout.md.
+          rules:
+            dns:
+              - matchPattern: "*"
+    # Intra-namespace egress on any port — web -> api, api -> redis svc IP,
+    # etc. Without this default-deny blocks every cross-component call.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ .Release.Namespace }}
+    # kube-apiserver egress (preemptive — CNPG + Cilium identity libs).
+    - toEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP }
 ---
-# 2) ingress-nginx -> web (the in-cluster LAN path; Cloudflare Tunnel goes the
-#    same way per values-homelab.yaml).
+# 2) ingress-nginx -> web (the in-cluster LAN path; Cloudflare Tunnel goes
+#    the same way per values-homelab.yaml).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -57,7 +77,7 @@ spec:
         - ports:
             - { port: "{{ .Values.api.port }}", protocol: TCP }
 ---
-# 4) api + worker + migrate -> postgres + redis.
+# 4) api + worker + migrate -> postgres + redis (EGRESS).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -101,7 +121,7 @@ spec:
             - { port: "11434", protocol: TCP }
 ---
 {{- if eq .Values.ai.factoryProvider "anthropic" }}
-# 5b) worker -> Anthropic API (when factoryProvider=anthropic).  FQDN egress
+# 5b) worker -> Anthropic API (when factoryProvider=anthropic). FQDN egress
 #     keeps it tight to api.anthropic.com only.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -119,16 +139,19 @@ spec:
             - { port: "443", protocol: TCP }
 ---
 {{- end }}
-# 6) CNPG operator (cnpg-system) -> postgres pods (manages bootstrap/failover).
+# 6) Postgres INGRESS — CNPG operator + money-app pods + intra-pg-cluster.
+#    Without the app-pods rule, the app-to-data egress allow has no matching
+#    ingress and connections drop on the postgres side.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: {{ include "learnquest.name" . }}-cnpg-operator-to-pg
+  name: {{ include "learnquest.name" . }}-pg-ingress
 spec:
   endpointSelector:
     matchLabels:
       cnpg.io/cluster: {{ include "learnquest.name" . }}-pg
   ingress:
+    # CNPG operator
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: cnpg-system
@@ -137,10 +160,42 @@ spec:
             - { port: "5432", protocol: TCP }
             - { port: "8000", protocol: TCP }
             - { port: "9187", protocol: TCP }
+    # learnquest app pods (api/worker/migrate) in same namespace
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/component
+              operator: In
+              values: ["api", "worker", "migrate"]
+      toPorts:
+        - ports:
+            - { port: "5432", protocol: TCP }
+    # Intra-Postgres-cluster traffic (streaming replication)
+    - fromEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "learnquest.name" . }}-pg
+---
+# 6b) Redis ingress — api + worker (default-deny selects redis via instance
+#     label; without explicit allow, ingress drops).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "learnquest.name" . }}-redis-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: redis
+  ingress:
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/component
+              operator: In
+              values: ["api", "worker"]
+      toPorts:
+        - ports:
+            - { port: "6379", protocol: TCP }
 ---
 {{- if .Values.cloudflare.tunnel.enabled }}
-# 7) cloudflared -> ingress-nginx (per values-homelab.yaml the tunnel hits
-#    cluster ingress with a Host header override) + Cloudflare edge egress.
+# 7) cloudflared -> ingress-nginx + Cloudflare edge.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -163,16 +218,14 @@ spec:
       toPorts:
         - ports:
             - { port: "{{ .Values.web.port }}", protocol: TCP }
-    # Cloudflare edge — same gotchas as money's cloudflared-egress (see
-    # comment block there). `*.cftunnel.com` was a typo, drop it; per-
-    # tunnel is `*.cfargotunnel.com`. Multi-level QUIC edge endpoints
-    # at `regionN.v2.argotunnel.com` need `*.v2.argotunnel.com` because
-    # Cilium matchPattern doesn't span dots.
+    # Cloudflare edge — see money's networkpolicy.yaml for the gotchas
+    # (cftunnel typo + matchPattern not spanning dots → need explicit
+    # *.v2.argotunnel.com for QUIC edges at regionN.v2.argotunnel.com).
     - toFQDNs:
         - { matchPattern: "*.cloudflare.com" }
-        - { matchPattern: "*.cfargotunnel.com" }    # per-tunnel endpoint
-        - { matchPattern: "*.argotunnel.com" }      # update.argotunnel.com
-        - { matchPattern: "*.v2.argotunnel.com" }   # regionN.v2 QUIC edges
+        - { matchPattern: "*.cfargotunnel.com" }
+        - { matchPattern: "*.argotunnel.com" }
+        - { matchPattern: "*.v2.argotunnel.com" }
         - { matchPattern: "*.cloudflareclient.com" }
         - { matchPattern: "*.cloudflareresearch.com" }
       toPorts:
@@ -182,17 +235,41 @@ spec:
             - { port: "7844", protocol: UDP }
 ---
 {{- end }}
-{{- if .Values.postgres.backup.enabled }}
-# 8) postgres -> S3 (barman backup, when enabled).
+# 8) Postgres EGRESS — CNPG instance manager needs kube-apiserver +
+#    intra-pg-cluster + DNS + S3 (when backup enabled).  Same lesson as
+#    money: a policy that selects postgres pods AND only allows S3 egress
+#    locks out apiserver and breaks the cluster ("Failing over" loop).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: {{ include "learnquest.name" . }}-pg-to-s3
+  name: {{ include "learnquest.name" . }}-pg-egress
 spec:
   endpointSelector:
     matchLabels:
       cnpg.io/cluster: {{ include "learnquest.name" . }}-pg
   egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP }
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "learnquest.name" . }}-pg
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+{{- if .Values.postgres.backup.enabled }}
     - toFQDNs:
         - { matchPattern: "s3.*.amazonaws.com" }
         - { matchPattern: "*.s3.*.amazonaws.com" }
