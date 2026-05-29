@@ -118,15 +118,22 @@ spec:
         - ports:
             - { port: "{{ .Values.web.port }}", protocol: TCP }
     # Cloudflare edge — tunnel uses 7844 (QUIC/h2) + 443 fallback.
-    # CRITICAL: the per-tunnel endpoint is *.cfargotunnel.com (note the
-    # `cf-argo-tunnel` — earlier patterns like `*.cftunnel.com` are wrong
-    # and cause HTTP 530 from Cloudflare's edge because cloudflared can't
-    # establish the tunnel back-channel).
+    # GOTCHAS LEARNED THE HARD WAY:
+    # 1) Per-tunnel endpoint is *.cfargotunnel.com (cf-argo-tunnel).
+    #    `*.cftunnel.com` is WRONG (typo in original) → HTTP 530 from edge.
+    # 2) Cilium `matchPattern: "*.X"` matches ONE subdomain level only.
+    #    Regional QUIC endpoints live at `region1.v2.argotunnel.com` (two
+    #    levels), so `*.argotunnel.com` MISSES them.  Must add explicit
+    #    `*.v2.argotunnel.com` pattern — verified live: cloudflared
+    #    pre-check logs `region1.v2.argotunnel.com FAIL QUIC connection
+    #    failed` until this pattern is allowed.
     - toFQDNs:
         - { matchPattern: "*.cloudflare.com" }
-        - { matchPattern: "*.cfargotunnel.com" }   # per-tunnel endpoint
-        - { matchPattern: "*.argotunnel.com" }     # regions + update
+        - { matchPattern: "*.cfargotunnel.com" }    # per-tunnel endpoint
+        - { matchPattern: "*.argotunnel.com" }      # update.argotunnel.com
+        - { matchPattern: "*.v2.argotunnel.com" }   # regionN.v2 QUIC edges
         - { matchPattern: "*.cloudflareclient.com" }
+        - { matchPattern: "*.cloudflareresearch.com" } # PQ TLS handshake
       toPorts:
         - ports:
             - { port: "443",  protocol: TCP }
