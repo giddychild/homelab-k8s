@@ -40,21 +40,27 @@ spec:
       app.kubernetes.io/name: argocd-repo-server
   egress:
     - toFQDNs:
+        # Git sources
         - { matchPattern: "*.github.com" }
         - { matchName:    "github.com" }
         - { matchName:    "codeload.github.com" }
         - { matchPattern: "*.githubusercontent.com" }
-        # Helm repos used by app-of-apps
+        - { matchPattern: "ghcr.io" }
+        - { matchPattern: "*.ghcr.io" }
+        # GitHub Pages used by many helm chart repos (aquasecurity,
+        # vmware-tanzu, kubernetes, prometheus-community, grafana, etc).
+        - { matchPattern: "*.github.io" }
+        # Generic per-vendor Helm repos referenced in app sources
         - { matchName:    "charts.jetstack.io" }
         - { matchName:    "charts.bitnami.com" }
-        - { matchName:    "kubernetes.github.io" }
-        - { matchName:    "prometheus-community.github.io" }
-        - { matchName:    "grafana.github.io" }
+        - { matchName:    "charts.external-secrets.io" }
+        - { matchName:    "helm.otwld.com" }              # ollama
+        - { matchName:    "helm.openwebui.com" }          # open-webui
+        - { matchName:    "helm.releases.hashicorp.com" } # vault
+        - { matchName:    "pkgs.tailscale.com" }
         - { matchPattern: "*.grafana.com" }
         - { matchPattern: "*.cnpg.io" }
         - { matchPattern: "*.gitops.dev" }
-        - { matchPattern: "ghcr.io" }
-        - { matchPattern: "*.ghcr.io" }
       toPorts:
         - ports:
             - { port: "443", protocol: TCP }
