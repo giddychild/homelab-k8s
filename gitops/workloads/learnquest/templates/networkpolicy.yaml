@@ -39,7 +39,13 @@ spec:
         - ports:
             - { port: "6443", protocol: TCP }
 ---
-# 2) ingress-nginx -> web.
+# 2) ingress-nginx + cloudflared -> web.
+# IMPORTANT: cloudflared's tunnel config in the Cloudflare dashboard routes
+# `learn.giddyland.net` DIRECTLY to learnquest-web.learnquest.svc:3000
+# (not via ingress-nginx). So both ingress-nginx (LAN path) AND cloudflared
+# (public path) need ingress allows here. Without the cloudflared rule:
+# Cloudflare → cloudflared works, but cloudflared → web is dropped at web's
+# ingress side → HTTP 502 "Host Error" from Cloudflare.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -52,11 +58,16 @@ spec:
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: ingress-nginx
+        - matchLabels:
+            app: {{ include "learnquest.name" . }}-cloudflared
       toPorts:
         - ports:
             - { port: "{{ .Values.web.port }}", protocol: TCP }
 ---
-# 3) web -> api.
+# 3) web + cloudflared -> api.
+# Cloudflared's tunnel config routes `learn.giddyland.net/api/*` DIRECTLY
+# to learnquest-api.learnquest.svc:8000 (bypassing web's BFF proxy). Without
+# allowing cloudflared here, every /api/* request returns 502.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -69,6 +80,8 @@ spec:
     - fromEndpoints:
         - matchLabels:
             app: {{ include "learnquest.name" . }}-web
+        - matchLabels:
+            app: {{ include "learnquest.name" . }}-cloudflared
       toPorts:
         - ports:
             - { port: "{{ .Values.api.port }}", protocol: TCP }
@@ -218,6 +231,13 @@ spec:
       toPorts:
         - ports:
             - { port: "{{ .Values.web.port }}", protocol: TCP }
+    # Cloudflared routes /api/* directly to api (not via web's BFF proxy).
+    - toEndpoints:
+        - matchLabels:
+            app: {{ include "learnquest.name" . }}-api
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.api.port }}", protocol: TCP }
     # Cloudflare edge — see money's networkpolicy.yaml for the gotchas
     # (matchPattern doesn't span dots → need *.v2.argotunnel.com).
     - toFQDNs:
