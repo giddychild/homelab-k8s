@@ -47,9 +47,14 @@ externalSecret:
 web:
   enabled: true
 
-# P0 hardening deferred (mirror money's first deploy): tighten after the loop works.
+# Network policies — full default-deny + scoped allows for learnquest.
+# Chart template includes the same lessons learned from money's rollout:
+# DNS proxy on default-deny (cloudflared FQDN egress matches resolved IPs),
+# *.v2.argotunnel.com pattern (QUIC edges), kube-apiserver egress, intra-ns
+# egress (web -> api), explicit postgres + redis ingress.
+# Rollback: set enabled=false, push — ArgoCD removes all CNPs in ~60s.
 networkPolicy:
-  enabled: false
+  enabled: true
 monitoring:
   serviceMonitor:
     enabled: false
