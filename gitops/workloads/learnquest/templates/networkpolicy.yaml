@@ -196,6 +196,10 @@ spec:
 ---
 {{- if .Values.cloudflare.tunnel.enabled }}
 # 7) cloudflared -> ingress-nginx + Cloudflare edge.
+# NOTE: learnquest's cloudflared.yaml template labels pods with
+#   { app: learnquest-cloudflared }  (NOT app.kubernetes.io/component).
+# So the selector must match `app: <name>-cloudflared`. Money's chart uses
+# `app.kubernetes.io/component: cloudflared` — different label scheme.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -203,7 +207,7 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/component: cloudflared
+      app: {{ include "learnquest.name" . }}-cloudflared
   egress:
     - toEndpoints:
         - matchLabels:
