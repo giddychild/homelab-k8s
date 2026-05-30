@@ -18,10 +18,14 @@ metadata:
     # accepting connections — including after a recovery from S3 completes).
     # ArgoCD waits for wave -5 health before applying wave 5.
     argocd.argoproj.io/sync-wave: "5"
-    # Hook-delete-policy is moot now (this isn't a hook). Replacing per-sync via
-    # BeforeHookCreation is replaced by deleting+recreating on each sync via
-    # Sync option; ArgoCD handles immutable Job spec by SSA replace.
-    argocd.argoproj.io/sync-options: Replace=true
+    # Job's spec.selector + spec.template are IMMUTABLE after K8s injects the
+    # controller-uid at creation. Plain Replace=true does `kubectl replace`
+    # which refuses immutable fields → every sync after the first one fails
+    # with "selector: field is immutable". Force=true upgrades that to
+    # `kubectl replace --force` (delete + create), which is the canonical
+    # way to re-run a Job on each sync. Replace alone was a leftover from
+    # the PreSync-hook era when ArgoCD's BeforeHookCreation handled deletion.
+    argocd.argoproj.io/sync-options: Replace=true,Force=true
 spec:
   backoffLimit: 3
   template:
