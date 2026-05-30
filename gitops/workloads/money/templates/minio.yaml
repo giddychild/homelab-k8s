@@ -1,0 +1,104 @@
+{{- if .Values.minio.enabled }}
+# In-cluster MinIO for receipt photo attachments.
+# Single replica, PVC-backed (Longhorn). Credentials come from Vault via ESO and
+# are mounted into the pod as root-user / root-password env vars; the API uses
+# the same credentials through STORAGE_ACCESS_KEY / STORAGE_SECRET_KEY.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "money.minio.fullname" . }}
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: {{ .Values.minio.storage.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.minio.storage.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "money.minio.fullname" . }}
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  # MinIO holds the only copy of the receipt bytes; Recreate avoids two pods
+  # racing for the PVC lock during rollouts.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "money.selectorLabels" (dict "ctx" . "component" "minio") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "money.selectorLabels" (dict "ctx" . "component" "minio") | nindent 8 }}
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: minio
+          image: {{ .Values.minio.image }}
+          args:
+            - server
+            - /data
+            - --console-address
+            - ":9001"
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalSecrets.targetSecretName }}
+                  key: storage_access_key
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalSecrets.targetSecretName }}
+                  key: storage_secret_key
+          ports:
+            - name: api
+              containerPort: 9000
+            - name: console
+              containerPort: 9001
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: api
+            periodSeconds: 10
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: api
+            periodSeconds: 30
+            initialDelaySeconds: 30
+          resources:
+            {{- toYaml .Values.minio.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "money.minio.fullname" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "money.minio.fullname" . }}
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "money.selectorLabels" (dict "ctx" . "component" "minio") | nindent 4 }}
+  ports:
+    - name: api
+      port: 9000
+      targetPort: api
+    - name: console
+      port: 9001
+      targetPort: console
+{{- end }}

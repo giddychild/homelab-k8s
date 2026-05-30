@@ -1,0 +1,95 @@
+{{- if .Values.minio.backup.enabled }}
+# Off-site mirror of the receipts MinIO bucket → an S3-compatible bucket
+# (typically AWS S3). Runs as a CronJob via the `mc` (minio-client) image and
+# uses `mc mirror --overwrite --remove` so the remote tracks the local 1:1
+# (deletes propagate). Credentials come from Vault via ESO:
+#   - storage_access_key / storage_secret_key on the source (MinIO root)
+#   - receipts_backup_access_key / receipts_backup_secret_key on the destination
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ include "money.minio.fullname" . }}-backup-s3
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  refreshInterval: {{ .Values.externalSecrets.refreshInterval }}
+  secretStoreRef:
+    name: {{ .Values.externalSecrets.secretStoreRef.name }}
+    kind: {{ .Values.externalSecrets.secretStoreRef.kind }}
+  target:
+    name: {{ include "money.minio.fullname" . }}-backup-s3
+    creationPolicy: Owner
+  data:
+    - secretKey: AWS_ACCESS_KEY_ID
+      remoteRef:
+        key: {{ .Values.minio.backup.vaultPath }}
+        property: access_key_id
+    - secretKey: AWS_SECRET_ACCESS_KEY
+      remoteRef:
+        key: {{ .Values.minio.backup.vaultPath }}
+        property: secret_access_key
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "money.minio.fullname" . }}-backup
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  # Run nightly (default 03:15) — receipts are small, the mirror is incremental.
+  schedule: {{ .Values.minio.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: mc
+              image: {{ .Values.minio.backup.image }}
+              env:
+                # Destination S3 creds — read from the ESO-synced Secret.
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "money.minio.fullname" . }}-backup-s3
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "money.minio.fullname" . }}-backup-s3
+                      key: AWS_SECRET_ACCESS_KEY
+                # Source: the in-cluster MinIO root creds (re-used).
+                - name: SRC_ACCESS
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.externalSecrets.targetSecretName }}
+                      key: storage_access_key
+                - name: SRC_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.externalSecrets.targetSecretName }}
+                      key: storage_secret_key
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  mc alias set src "http://{{ include "money.minio.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:9000" "$SRC_ACCESS" "$SRC_SECRET"
+                  mc alias set dst "{{ .Values.minio.backup.endpointUrl }}" "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY"
+                  # First run: create the destination bucket if it isn't there yet.
+                  mc mb --ignore-existing "dst/{{ .Values.minio.backup.bucket }}"
+                  mc mirror --overwrite --remove --quiet \
+                    "src/{{ .Values.storage.bucket }}" \
+                    "dst/{{ .Values.minio.backup.bucket }}"
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+{{- end }}

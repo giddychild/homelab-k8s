@@ -31,6 +31,7 @@ app.kubernetes.io/component: {{ .component }}
 {{- define "money.worker.fullname" -}}{{ printf "%s-worker" (include "money.fullname" .) }}{{- end -}}
 {{- define "money.redis.fullname" -}}{{ printf "%s-redis" (include "money.fullname" .) }}{{- end -}}
 {{- define "money.pg.fullname" -}}{{ printf "%s-pg" (include "money.fullname" .) }}{{- end -}}
+{{- define "money.minio.fullname" -}}{{ printf "%s-minio" (include "money.fullname" .) }}{{- end -}}
 
 {{/* Shared API/worker env (secrets + AI config). */}}
 {{- define "money.appEnv" -}}
@@ -113,5 +114,29 @@ app.kubernetes.io/component: {{ .component }}
     secretKeyRef:
       name: {{ .Values.externalSecrets.targetSecretName }}
       key: smtp_password
+      optional: true
+# Object storage for receipt photos (in-cluster MinIO). Disabled unless
+# storage.enabled is true; credentials are sourced from Vault via ESO.
+- name: STORAGE_ENABLED
+  value: {{ .Values.storage.enabled | default false | quote }}
+- name: STORAGE_ENDPOINT_URL
+  value: {{ .Values.storage.endpointUrl | default "" | quote }}
+- name: STORAGE_REGION
+  value: {{ .Values.storage.region | default "us-east-1" | quote }}
+- name: STORAGE_BUCKET
+  value: {{ .Values.storage.bucket | default "money-receipts" | quote }}
+- name: STORAGE_MAX_UPLOAD_BYTES
+  value: {{ .Values.storage.maxUploadBytes | default 10485760 | quote }}
+- name: STORAGE_ACCESS_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.externalSecrets.targetSecretName }}
+      key: storage_access_key
+      optional: true
+- name: STORAGE_SECRET_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.externalSecrets.targetSecretName }}
+      key: storage_secret_key
       optional: true
 {{- end -}}

@@ -4,9 +4,9 @@
 # Locally-built images pushed to GHCR (private; pulled via ghcr-pull secret).
 image:
   api:
-    tag: "0.24.0"
+    tag: "0.25.1"
   web:
-    tag: "0.24.0"
+    tag: "0.25.1"
 
 # Vault path aligned to the apps-prod AppRole policy (secret/data/money/*).
 # Secret lives at secret/money/app with properties:
@@ -98,3 +98,16 @@ adminEmails: "seyiobadina@yahoo.com"
 # Public exposure via Cloudflare Tunnel (token in Vault secret/money/cf-tunnel).
 cloudflare:
   tunnelEnabled: true
+
+# In-cluster MinIO for receipt photo storage. Flip these to true together with
+# externalSecrets.storage AFTER writing storage_access_key + storage_secret_key
+# to Vault secret/money/app — see docs/runbooks/money-receipts-storage.md.
+minio:
+  enabled: false
+storage:
+  enabled: false
+  endpointUrl: "http://money-minio.money.svc.cluster.local:9000"
+  bucket: "money-receipts"
+# Tied to the same Vault keys as MinIO; flip on once both are present.
+# externalSecrets:
+#   storage: true
