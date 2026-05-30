@@ -212,4 +212,4 @@ are now baked into the chart + this runbook:
 
 4. **Recovery skips initdb → app user permissions missing** — step 6's GRANTs.
 
-5. **Vault DATABASE_URL drifts after recovery** — the URL in Vault uses `user=money,password=<old>`. The new live cluster's working credentials are in CNPG's auto-managed `money-pg-app` (user=`app`, fresh password). The chart's `appEnv` helper sources from `money-pg-app` directly, so apps work — but Vault's URL is now stale and should be updated or removed. Lower priority than steps 1–7.
+5. ~~**Vault DATABASE_URL drifts after recovery**~~ — fixed: the ExternalSecret no longer pulls `database_url` from Vault, and `_helpers.tpl` assembles DATABASE_URL at runtime from `money-pg-app` (CNPG-managed, always matches live password). Any `database_url` property still in Vault is unused and safe to delete.

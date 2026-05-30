@@ -10,7 +10,10 @@ image:
 
 # Vault path aligned to the apps-prod AppRole policy (secret/data/money/*).
 # Secret lives at secret/money/app with properties:
-#   database_url, redis_url, jwt_private_key, jwt_public_key
+#   redis_url, jwt_private_key, jwt_public_key
+# (DATABASE_URL is built from CNPG's money-pg-app secret at runtime — see
+# _helpers.tpl. The database_url property in Vault, if any, is unused and
+# safe to delete.)
 externalSecrets:
   vaultPath: "money/app"
   # Flip to true AFTER adding a `credential_key` (Fernet) to Vault secret/money/app,
