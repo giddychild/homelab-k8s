@@ -5,9 +5,23 @@ metadata:
   labels:
     {{- include "money.labels" . | nindent 4 }}
   annotations:
-    # ArgoCD runs this before syncing the rest of the app.
-    argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    # Used to be a PreSync hook, but PreSync runs BEFORE Sync — meaning before
+    # the ExternalSecret materializes money-secrets and before CNPG bootstraps
+    # the Cluster (which creates money-pg-app). On a fresh-namespace / post-
+    # cascade-delete sync that left no secrets behind, the migrate pod hit
+    # CreateContainerConfigError because the secrets it mounts didn't exist
+    # yet, and Job backoff doesn't retry kubelet config errors → deadlock.
+    #
+    # Fix: regular Sync resource ordered by sync-wave. ExternalSecret + Cluster
+    # are wave -5 (apply + reach Healthy first); migrate runs at wave 5 only
+    # after both are Healthy (CNPG's Cluster reports Healthy when postgres is
+    # accepting connections — including after a recovery from S3 completes).
+    # ArgoCD waits for wave -5 health before applying wave 5.
+    argocd.argoproj.io/sync-wave: "5"
+    # Hook-delete-policy is moot now (this isn't a hook). Replacing per-sync via
+    # BeforeHookCreation is replaced by deleting+recreating on each sync via
+    # Sync option; ArgoCD handles immutable Job spec by SSA replace.
+    argocd.argoproj.io/sync-options: Replace=true
 spec:
   backoffLimit: 3
   template:
