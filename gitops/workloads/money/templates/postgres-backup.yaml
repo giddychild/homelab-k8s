@@ -7,6 +7,16 @@ metadata:
   name: {{ .Values.postgres.backup.s3CredentialsSecret }}
   labels:
     {{- include "money.labels" . | nindent 4 }}
+  annotations:
+    # Wave -5 so this secret exists BEFORE the CNPG Cluster (also wave -5)
+    # tries to use it. On recovery=enabled the Cluster reads this secret to
+    # auth against S3 for the base-backup download; if the secret doesn't
+    # exist yet the recovery pod crash-loops with "secrets ...-backup-s3 not
+    # found" until ArgoCD reaches wave 0 — but ArgoCD won't advance to wave 0
+    # while wave -5 isn't Healthy, so it deadlocks. Same wave as the Cluster
+    # is fine: ArgoCD applies all wave -5 resources, then waits for ALL to be
+    # Healthy before moving on.
+    argocd.argoproj.io/sync-wave: "-5"
 spec:
   refreshInterval: {{ .Values.externalSecrets.refreshInterval }}
   secretStoreRef:
