@@ -65,6 +65,14 @@ spec:
   {{- if .Values.postgres.backup.enabled }}
   backup:
     barmanObjectStore:
+      {{- if .Values.postgres.backup.serverName }}
+      # Explicit serverName for THIS cluster's WAL archive + base backups.
+      # Defaults to the Cluster's metadata.name when unset. MUST be set to
+      # something different from recover.serverName when restoring in place,
+      # otherwise CNPG's "WAL archive check" sees the source's existing WALs
+      # under the same S3 prefix and aborts with "Expected empty archive".
+      serverName: {{ .Values.postgres.backup.serverName | quote }}
+      {{- end }}
       destinationPath: {{ .Values.postgres.backup.destinationPath | quote }}
       endpointURL: {{ .Values.postgres.backup.endpointURL | quote }}
       s3Credentials:
