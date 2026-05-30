@@ -100,6 +100,17 @@ postgres:
     s3CredentialsVaultPath: "money/backup-s3"
     # CNPG 6-field cron (seconds first) — daily base backup at 03:30.
     schedule: "0 30 3 * * *"
+  # PITR recovery — bootstrap a fresh cluster from the S3 backups instead of
+  # initdb. Use this ONLY to recover from a destroyed cluster (e.g. accidental
+  # namespace delete). After the new cluster comes up Healthy with restored data,
+  # flip enabled back to false in a follow-up commit.
+  recover:
+    enabled: false
+    serverName: ""              # serverName of the OLD cluster in S3 (e.g. "money-pg")
+    # Optional point-in-time recovery target. Omit to replay every WAL through
+    # the latest available one (closest to the deletion moment). Format:
+    # "2026-05-30 03:40:00+00"  (24h UTC, +00 = Zulu).
+    targetTime: ""
 
 redis:
   image: redis:7-alpine

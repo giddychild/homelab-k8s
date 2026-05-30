@@ -12,7 +12,40 @@ spec:
     size: {{ .Values.postgres.storage.size }}
     storageClass: {{ .Values.postgres.storage.storageClass }}
 
+{{- if .Values.postgres.recover.enabled }}
+  # External cluster definition pointing at the S3 backups CNPG/Barman wrote
+  # under the OLD cluster's serverName. The new cluster bootstraps by replaying
+  # the most recent base backup + WAL files instead of running initdb.
+  externalClusters:
+    - name: source-cluster
+      barmanObjectStore:
+        serverName: {{ .Values.postgres.recover.serverName | quote }}
+        destinationPath: {{ .Values.postgres.backup.destinationPath | quote }}
+        endpointURL: {{ .Values.postgres.backup.endpointURL | quote }}
+        s3Credentials:
+          accessKeyId:
+            name: {{ .Values.postgres.backup.s3CredentialsSecret }}
+            key: ACCESS_KEY_ID
+          secretAccessKey:
+            name: {{ .Values.postgres.backup.s3CredentialsSecret }}
+            key: ACCESS_SECRET_KEY
+        wal:
+          compression: gzip
+{{- end }}
+
   bootstrap:
+{{- if .Values.postgres.recover.enabled }}
+    # PITR / latest recovery from the S3 base backup + WAL stream. Replaces the
+    # initdb path while recover.enabled is true; after restore succeeds, set it
+    # back to false in a follow-up commit (CNPG only honors bootstrap on initial
+    # cluster create, so leaving on is harmless — but cleaner off).
+    recovery:
+      source: source-cluster
+      {{- if .Values.postgres.recover.targetTime }}
+      recoveryTarget:
+        targetTime: {{ .Values.postgres.recover.targetTime | quote }}
+      {{- end }}
+{{- else }}
     initdb:
       database: {{ .Values.postgres.database }}
       owner: {{ .Values.postgres.owner }}
@@ -22,6 +55,7 @@ spec:
       # superuser, so the Alembic migration can't create the extension itself.
       postInitApplicationSQL:
         - "CREATE EXTENSION IF NOT EXISTS vector;"
+{{- end }}
 
   {{- if .Values.postgres.backup.enabled }}
   backup:

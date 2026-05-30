@@ -66,6 +66,17 @@ postgres:
     destinationPath: "s3://giddyland-money-pg-backups/"
     endpointURL: "https://s3.us-east-1.amazonaws.com"
     s3CredentialsVaultPath: "money/backup-s3"
+  # 2026-05-30: recovering from S3 after the money namespace was cascade-deleted
+  # at ~03:46 UTC. Latest base backup is 20260530T033002 (16 min before delete);
+  # WAL archiving was live through 22:52 the night before and continued past
+  # midnight UTC. CNPG will replay the latest base + every available WAL to get
+  # as close to the deletion moment as possible (no targetTime = latest).
+  # FLIP BACK TO false IN A FOLLOW-UP COMMIT once the cluster is Healthy with
+  # restored data — CNPG only honors bootstrap on initial create, so leaving on
+  # is harmless, but it documents intent.
+  recover:
+    enabled: true
+    serverName: "money-pg"
 
 redis:
   storage:
