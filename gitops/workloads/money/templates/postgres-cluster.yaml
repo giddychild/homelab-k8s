@@ -4,6 +4,11 @@ metadata:
   name: {{ include "money.pg.fullname" . }}
   labels:
     {{- include "money.labels" . | nindent 4 }}
+  annotations:
+    # Wave -5 so postgres is up (Health=Ready, which CNPG reports only once
+    # primary is accepting connections — INCLUDING after recovery completes)
+    # before migrate (wave 5) tries to mount money-pg-app and run Alembic.
+    argocd.argoproj.io/sync-wave: "-5"
 spec:
   instances: {{ .Values.postgres.instances }}
   imageName: {{ .Values.postgres.image }}
