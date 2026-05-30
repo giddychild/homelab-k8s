@@ -98,6 +98,13 @@ postgres:
     # Vault path (KV v2) holding access_key_id / secret_access_key for the backup
     # bucket's IAM user; ESO materializes it into s3CredentialsSecret.
     s3CredentialsVaultPath: "money/backup-s3"
+    # Explicit serverName for THIS cluster's WAL archive + base-backup prefix in
+    # S3. Empty = defaults to the Cluster's metadata.name. MUST be set to
+    # something different from postgres.recover.serverName when restoring in
+    # place — otherwise CNPG's pre-start "WAL archive check" sees the source's
+    # existing WALs under the same prefix and aborts with "Expected empty
+    # archive". After a restore, this is the new permanent prefix going forward.
+    serverName: ""
     # CNPG 6-field cron (seconds first) — daily base backup at 03:30.
     schedule: "0 30 3 * * *"
   # PITR recovery — bootstrap a fresh cluster from the S3 backups instead of

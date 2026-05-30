@@ -66,6 +66,13 @@ postgres:
     destinationPath: "s3://giddyland-money-pg-backups/"
     endpointURL: "https://s3.us-east-1.amazonaws.com"
     s3CredentialsVaultPath: "money/backup-s3"
+    # New write-prefix: the original "money-pg" path holds the WALs we just
+    # recovered from. CNPG refuses to write into a non-empty archive (safety
+    # check against two clusters sharing the same prefix). Going forward, this
+    # cluster's backups + WALs live under .../money-pg-v2/. The old money-pg/
+    # tree is historical only and can be deleted from S3 once recovery is
+    # confirmed good (don't delete it until then — we may need to re-restore).
+    serverName: "money-pg-v2"
   # 2026-05-30: recovering from S3 after the money namespace was cascade-deleted
   # at ~03:46 UTC. Latest base backup is 20260530T033002 (16 min before delete);
   # WAL archiving was live through 22:52 the night before and continued past
