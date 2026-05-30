@@ -4,9 +4,9 @@
 # Locally-built images pushed to GHCR (private; pulled via ghcr-pull secret).
 image:
   api:
-    tag: "0.25.1"
+    tag: "0.25.2"
   web:
-    tag: "0.25.1"
+    tag: "0.25.2"
 
 # Vault path aligned to the apps-prod AppRole policy (secret/data/money/*).
 # Secret lives at secret/money/app with properties:
