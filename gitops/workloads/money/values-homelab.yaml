@@ -73,17 +73,21 @@ postgres:
     # tree is historical only and can be deleted from S3 once recovery is
     # confirmed good (don't delete it until then — we may need to re-restore).
     serverName: "money-pg-v2"
-  # 2026-05-30: recovering from S3 after the money namespace was cascade-deleted
-  # at ~03:46 UTC. Latest base backup is 20260530T033002 (16 min before delete);
-  # WAL archiving was live through 22:52 the night before and continued past
-  # midnight UTC. CNPG will replay the latest base + every available WAL to get
-  # as close to the deletion moment as possible (no targetTime = latest).
-  # FLIP BACK TO false IN A FOLLOW-UP COMMIT once the cluster is Healthy with
-  # restored data — CNPG only honors bootstrap on initial create, so leaving on
-  # is harmless, but it documents intent.
+  # PITR / recovery from S3. Flip enabled=true ONLY when bootstrapping a fresh
+  # cluster from an existing barman archive (e.g. after accidental cascade-delete
+  # destroyed the live data). When toggling on, ALSO set backup.serverName above
+  # to a NEW prefix — recovery reads from recover.serverName, the cluster writes
+  # to backup.serverName, and the two must differ or CNPG refuses to start with
+  # "WAL archive check failed: Expected empty archive". See the full procedure
+  # in docs/runbooks/money-cnpg-restore.md. CNPG only honors bootstrap on initial
+  # cluster create, so leaving enabled=true after the fact is harmless — but
+  # disabling it once restore is confirmed healthy keeps intent clear.
+  #
+  # Last used: 2026-05-30, restored from base backup 20260530T033002 after the
+  # money namespace was cascade-deleted at ~03:46 UTC.
   recover:
-    enabled: true
-    serverName: "money-pg"
+    enabled: false
+    serverName: ""
 
 redis:
   storage:
