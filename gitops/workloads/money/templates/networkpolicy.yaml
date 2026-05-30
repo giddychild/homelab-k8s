@@ -207,6 +207,29 @@ spec:
         - ports:
             - { port: "11434", protocol: TCP }
 ---
+{{- if .Values.externalSecret.discordWebhook }}
+# 5b) api -> Discord webhooks (login / sign-up / alert notifications via the
+# notify path). Gated on externalSecret.discordWebhook so deploys without the
+# Vault key don't carry unnecessary egress.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "money.fullname" . }}-api-to-discord
+  labels:
+    {{- include "money.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: api
+  egress:
+    - toFQDNs:
+        - { matchName: "discord.com" }
+        - { matchName: "discordapp.com" }
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
+---
+{{- end }}
 # 6) Postgres ingress — CNPG operator (cnpg-system), money app pods
 #    (api/worker/migrate), AND intra-cluster Postgres traffic (replica ->
 #    primary, pooler -> instances, etc).  Without the money-app rule, the

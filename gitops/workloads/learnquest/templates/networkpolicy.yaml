@@ -150,6 +150,27 @@ spec:
             - { port: "443", protocol: TCP }
 ---
 {{- end }}
+{{- if .Values.loginAlerts.enabled }}
+# 5c) api -> Discord webhooks (login alerts, signup notifications, payout
+# requests, freeze/unfreeze, co-parent add — all the notify.send() callsites).
+# Gated on loginAlerts so a non-alert deploy doesn't have unnecessary egress.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "learnquest.name" . }}-api-to-discord
+spec:
+  endpointSelector:
+    matchLabels:
+      app: {{ include "learnquest.name" . }}-api
+  egress:
+    - toFQDNs:
+        - { matchName: "discord.com" }
+        - { matchName: "discordapp.com" }
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
+---
+{{- end }}
 # 6) Postgres INGRESS — CNPG operator + learnquest app pods + intra-pg-cluster.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
