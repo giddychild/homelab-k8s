@@ -207,9 +207,9 @@ spec:
         - ports:
             - { port: "11434", protocol: TCP }
 ---
-{{- if .Values.externalSecret.discordWebhook }}
+{{- if .Values.externalSecrets.discordWebhook }}
 # 5b) api -> Discord webhooks (login / sign-up / alert notifications via the
-# notify path). Gated on externalSecret.discordWebhook so deploys without the
+# notify path). Gated on externalSecrets.discordWebhook so deploys without the
 # Vault key don't carry unnecessary egress.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
