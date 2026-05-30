@@ -126,7 +126,10 @@ app.kubernetes.io/component: {{ .component }}
 - name: STORAGE_BUCKET
   value: {{ .Values.storage.bucket | default "money-receipts" | quote }}
 - name: STORAGE_MAX_UPLOAD_BYTES
-  value: {{ .Values.storage.maxUploadBytes | default 10485760 | quote }}
+  # `| int | quote` forces a literal integer string. Without `int`, Helm/Go
+  # template treats 10485760 as a float and emits "1.048576e+07", which Pydantic
+  # then refuses to parse as an int and the API/worker/migrate pods crash on boot.
+  value: {{ .Values.storage.maxUploadBytes | default 10485760 | int | quote }}
 - name: STORAGE_ACCESS_KEY
   valueFrom:
     secretKeyRef:
