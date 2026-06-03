@@ -8,7 +8,7 @@ image:
   registry: ghcr.io/giddychild
   backend: brainblocks-backend
   frontend: brainblocks-frontend
-  tag: "1.0.0"
+  tag: "1.0.1"
   pullPolicy: IfNotPresent
   pullSecret: ghcr-pull
 
