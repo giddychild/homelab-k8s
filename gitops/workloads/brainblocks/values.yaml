@@ -1,0 +1,69 @@
+# Default values. Overridden by values-homelab.yaml for apps-prod.
+# BrainBlocks is a small two-tier app: a Node/Express API (backend) + a static
+# nginx SPA (frontend), backed by a CloudNativePG cluster. Same conventions as
+# learnquest/money (CNPG, ESO from Vault, ghcr-pull, Cilium netpol).
+nameOverride: ""
+
+image:
+  registry: ghcr.io/giddychild
+  backend: brainblocks-backend
+  frontend: brainblocks-frontend
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+  pullSecret: ghcr-pull
+
+backend:
+  replicas: 2
+  port: 4000
+  jwtExpiresIn: "7d"
+  # Public + LAN origins the SPA is served from (comma-separated; CORS allowlist).
+  corsOrigin: "https://brainblocks.giddyland.net,https://brainblocks.apps.giddyland.net"
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+
+frontend:
+  replicas: 2
+  port: 80
+  resources:
+    requests: { cpu: 25m, memory: 32Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+
+postgres:
+  # CloudNativePG cluster. No extensions needed (plain relational schema).
+  instances: 2
+  image: ghcr.io/cloudnative-pg/postgresql:16-standard-bookworm
+  storageClass: longhorn-r2   # 2 replicas; matches learnquest
+  size: 2Gi
+  backup:
+    enabled: false
+
+ingress:
+  enabled: true
+  className: nginx
+  host: brainblocks.apps.giddyland.net
+  clusterIssuer: letsencrypt-prod
+  tls: true
+
+# Public exposure via Cloudflare Tunnel (cloudflared dials out; no inbound ports).
+# The public hostname route (brainblocks.giddyland.net -> frontend:80, /api -> backend:4000)
+# and any Cloudflare Access policy live in the Zero Trust dashboard; only the tunnel
+# token is needed here (Vault key cf_tunnel_token, surfaced into brainblocks-secrets).
+cloudflare:
+  publicHost: brainblocks.giddyland.net
+  tunnel:
+    enabled: false
+    image: cloudflare/cloudflared:2026.5.2
+    replicas: 2
+
+externalSecret:
+  enabled: true
+  storeRef: vault-backend           # ClusterSecretStore (cross-cluster AppRole)
+  vaultPath: brainblocks/app         # secret/brainblocks/app
+  secretName: brainblocks-secrets
+
+networkPolicy:
+  enabled: true                     # default-deny + scoped allows
+
+env:
+  NODE_ENV: production

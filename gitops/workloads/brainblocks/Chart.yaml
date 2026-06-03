@@ -1,0 +1,6 @@
+apiVersion: v2
+name: brainblocks
+description: BrainBlocks — colorful visual-memory brain game (kids 5+ and adults), apps-prod
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

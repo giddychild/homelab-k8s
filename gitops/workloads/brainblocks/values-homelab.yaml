@@ -1,0 +1,26 @@
+# apps-prod overrides. Image tag bumped by CI / ArgoCD Image Updater.
+image:
+  tag: "1.0.0"
+
+ingress:
+  host: brainblocks.apps.giddyland.net
+  clusterIssuer: letsencrypt-prod
+
+# Public access via Cloudflare Tunnel + (optional) Cloudflare Access. The public
+# hostname route brainblocks.giddyland.net -> frontend:80 (and /api -> backend:4000)
+# is set in the Zero Trust dashboard; only the tunnel token lives here.
+# REQUIRES Vault key cf_tunnel_token in secret/brainblocks/app BEFORE this merges,
+# or the ESO sync errors.
+cloudflare:
+  publicHost: brainblocks.giddyland.net
+  tunnel:
+    enabled: true
+
+externalSecret:
+  vaultPath: brainblocks/app
+  secretName: brainblocks-secrets
+
+# Full default-deny + scoped allows. Rollback: set enabled=false, push — ArgoCD
+# removes all CiliumNetworkPolicies in ~60s.
+networkPolicy:
+  enabled: true
