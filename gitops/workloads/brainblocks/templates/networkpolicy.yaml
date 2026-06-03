@@ -1,0 +1,181 @@
+{{- if .Values.networkPolicy.enabled }}
+# Full default-deny + explicit-allow zero-trust for the brainblocks namespace.
+# LABEL CONVENTION: component pods are labelled `app: brainblocks-<component>`
+# (backend, frontend, cloudflared, migrate). Postgres pods use
+# `cnpg.io/cluster: brainblocks-pg` (CNPG convention) — selectors MUST match that.
+# Same lessons as learnquest/money: DNS proxy on default-deny, kube-apiserver
+# egress, intra-ns egress, explicit cloudflared edge FQDNs (QUIC 7844).
+---
+# 1) Default-deny: ingress none; egress = DNS + intra-namespace + kube-apiserver.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "brainblocks.name" . }}-default-deny
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+          rules:
+            dns:
+              - matchPattern: "*"
+    # Intra-namespace egress on any port — frontend/cloudflared -> backend, backend -> pg.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ .Release.Namespace }}
+    # kube-apiserver egress (CNPG + Cilium identity libs).
+    - toEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP }
+---
+# 2) ingress-nginx + cloudflared -> frontend.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "brainblocks.name" . }}-ingress-to-frontend
+spec:
+  endpointSelector:
+    matchLabels:
+      app: {{ include "brainblocks.name" . }}-frontend
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+        - matchLabels:
+            app: {{ include "brainblocks.name" . }}-cloudflared
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.frontend.port }}", protocol: TCP }
+---
+# 3) ingress-nginx + cloudflared -> backend. Cloudflared routes
+# brainblocks.giddyland.net/api/* DIRECTLY to the backend Service; without this
+# allow every /api/* request returns 502.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "brainblocks.name" . }}-ingress-to-backend
+spec:
+  endpointSelector:
+    matchLabels:
+      app: {{ include "brainblocks.name" . }}-backend
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+        - matchLabels:
+            app: {{ include "brainblocks.name" . }}-cloudflared
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.backend.port }}", protocol: TCP }
+---
+# 4) Postgres INGRESS — CNPG operator + app pods (backend/migrate) + intra-pg.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "brainblocks.name" . }}-pg-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ include "brainblocks.name" . }}-pg
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - { port: "5432", protocol: TCP }
+            - { port: "8000", protocol: TCP }
+            - { port: "9187", protocol: TCP }
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app
+              operator: In
+              values:
+                - {{ include "brainblocks.name" . }}-backend
+                - {{ include "brainblocks.name" . }}-migrate
+      toPorts:
+        - ports:
+            - { port: "5432", protocol: TCP }
+    - fromEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "brainblocks.name" . }}-pg
+---
+# 5) Postgres EGRESS — apiserver + intra-pg + dns + cnpg-system.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "brainblocks.name" . }}-pg-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ include "brainblocks.name" . }}-pg
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP }
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "brainblocks.name" . }}-pg
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+{{- if .Values.cloudflare.tunnel.enabled }}
+---
+# 6) cloudflared -> frontend + backend + Cloudflare edge. Intra-ns egress to the
+# Services is already allowed by default-deny; this adds the external edge FQDNs.
+# matchPattern doesn't span dots -> need the *.v2.argotunnel.com QUIC edges too.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "brainblocks.name" . }}-cloudflared-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      app: {{ include "brainblocks.name" . }}-cloudflared
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app: {{ include "brainblocks.name" . }}-frontend
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.frontend.port }}", protocol: TCP }
+    - toEndpoints:
+        - matchLabels:
+            app: {{ include "brainblocks.name" . }}-backend
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.backend.port }}", protocol: TCP }
+    - toFQDNs:
+        - { matchPattern: "*.cloudflare.com" }
+        - { matchPattern: "*.cfargotunnel.com" }
+        - { matchPattern: "*.argotunnel.com" }
+        - { matchPattern: "*.v2.argotunnel.com" }
+        - { matchPattern: "*.cloudflareclient.com" }
+        - { matchPattern: "*.cloudflareresearch.com" }
+      toPorts:
+        - ports:
+            - { port: "443",  protocol: TCP }
+            - { port: "7844", protocol: TCP }
+            - { port: "7844", protocol: UDP }
+{{- end }}
+{{- end }}

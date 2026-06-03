@@ -1,0 +1,43 @@
+# Prisma migrations as an ArgoCD PostSync hook (same reasoning as learnquest:
+# the migration depends on the CNPG Postgres `brainblocks-pg-app` secret + the
+# `-pg-rw` service, both created in the MAIN sync — so a PreSync hook would
+# deadlock). PostSync runs after the DB is up; the retry loop tolerates CNPG
+# still electing a primary. Seeding the achievement catalog is idempotent and
+# best-effort — a seed hiccup must never wedge the deploy.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "brainblocks.name" . }}-migrate
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      # Stable label so the CiliumNetworkPolicy can select the migrate pod
+      # alongside backend (this chart labels pods `app: brainblocks-<component>`).
+      labels:
+        app: {{ include "brainblocks.name" . }}-migrate
+    spec:
+      restartPolicy: Never
+      imagePullSecrets: [{ name: {{ .Values.image.pullSecret }} }]
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.registry }}/{{ .Values.image.backend }}:{{ .Values.image.tag }}"
+          command:
+            - sh
+            - -c
+            - |
+              for i in $(seq 1 40); do
+                if npx prisma migrate deploy; then
+                  # Seed the achievement catalog (idempotent upsert). Best-effort:
+                  # log + exit 0 so a seed bug never wedges the deploy.
+                  node -e "require('./dist/db/seedAchievements').ensureAchievementsSeeded().then(()=>{console.log('seed ok');process.exit(0)}).catch(e=>{console.error('seed failed (non-fatal):',e);process.exit(0)})"
+                  exit 0
+                fi
+                echo "db not ready yet (attempt $i), retrying in 5s..."
+                sleep 5
+              done
+              echo "migrations failed after retries"; exit 1
+          env: {{- include "brainblocks.appEnv" . | nindent 12 }}

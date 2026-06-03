@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "brainblocks.name" . }}-backend
+  labels: {{- include "brainblocks.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  selector:
+    matchLabels: { app: {{ include "brainblocks.name" . }}-backend }
+  template:
+    metadata:
+      labels: { app: {{ include "brainblocks.name" . }}-backend }
+    spec:
+      imagePullSecrets: [{ name: {{ .Values.image.pullSecret }} }]
+      containers:
+        - name: backend
+          image: "{{ .Values.image.registry }}/{{ .Values.image.backend }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Migrations run in the PostSync migrate Job, so the app just serves.
+          command: ["node", "dist/server.js"]
+          ports: [{ containerPort: {{ .Values.backend.port }} }]
+          env: {{- include "brainblocks.appEnv" . | nindent 12 }}
+          readinessProbe:
+            httpGet: { path: /api/health, port: {{ .Values.backend.port }} }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/health, port: {{ .Values.backend.port }} }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources: {{- toYaml .Values.backend.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "brainblocks.name" . }}-backend
+spec:
+  selector: { app: {{ include "brainblocks.name" . }}-backend }
+  ports: [{ port: {{ .Values.backend.port }}, targetPort: {{ .Values.backend.port }} }]

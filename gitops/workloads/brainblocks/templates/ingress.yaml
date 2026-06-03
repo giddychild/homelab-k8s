@@ -1,0 +1,31 @@
+{{- if .Values.ingress.enabled }}
+# LAN/internal ingress (nginx + cert-manager). Public access is via the Cloudflare
+# Tunnel (cloudflared), which routes brainblocks.giddyland.net straight to the
+# Services. Routes /api -> backend and / -> frontend on one host.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "brainblocks.name" . }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts: [{{ .Values.ingress.host | quote }}]
+      secretName: {{ include "brainblocks.name" . }}-tls
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          # API first so /api doesn't fall through to the SPA.
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: { name: {{ include "brainblocks.name" . }}-backend, port: { number: {{ .Values.backend.port }} } }
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: {{ include "brainblocks.name" . }}-frontend, port: { number: {{ .Values.frontend.port }} } }
+{{- end }}

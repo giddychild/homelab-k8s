@@ -1,0 +1,27 @@
+# CloudNativePG cluster. BrainBlocks uses a plain relational schema (no pgvector),
+# so no postInitApplicationSQL is needed. CNPG generates the `<name>-pg-app` secret
+# (username/password/dbname) and the `<name>-pg-rw` service consumed by the app.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "brainblocks.name" . }}-pg
+  labels: {{- include "brainblocks.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.postgres.instances }}
+  imageName: {{ .Values.postgres.image }}
+  storage:
+    storageClass: {{ .Values.postgres.storageClass }}
+    size: {{ .Values.postgres.size }}
+  bootstrap:
+    initdb:
+      database: brainblocks
+      owner: brainblocks
+  {{- if .Values.postgres.backup.enabled }}
+  backup:
+    barmanObjectStore:
+      destinationPath: {{ .Values.postgres.backup.destinationPath }}
+      s3Credentials:
+        accessKeyId: { name: {{ .Values.externalSecret.secretName }}, key: s3_access_key }
+        secretAccessKey: { name: {{ .Values.externalSecret.secretName }}, key: s3_secret_key }
+    retentionPolicy: "30d"
+  {{- end }}
