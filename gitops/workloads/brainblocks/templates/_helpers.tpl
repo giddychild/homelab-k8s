@@ -9,18 +9,13 @@ helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 {{- end -}}
 
 {{/*
-Backend (API) environment. DATABASE_URL is built from the CNPG-managed app secret
+DB-only env. DATABASE_URL is built from the CNPG-managed app secret
 (brainblocks-pg-app) via k8s $(VAR) expansion — same trick as learnquest/money:
 whatever the CNPG secret holds IS the DB password, so we never coordinate it with
-Vault. The JWT secret comes from the ESO-materialized brainblocks-secrets.
+Vault. Used on its own by the migrate Job so migrations DON'T depend on the
+ESO-materialized app secret (which delayed the first deploy).
 */}}
-{{- define "brainblocks.appEnv" -}}
-- name: NODE_ENV
-  value: {{ .Values.env.NODE_ENV | default "production" | quote }}
-- name: PORT
-  value: {{ .Values.backend.port | quote }}
-- name: APP_VERSION
-  value: {{ .Values.image.tag | quote }}
+{{- define "brainblocks.dbEnv" -}}
 - name: PG_HOST
   value: {{ include "brainblocks.name" . }}-pg-rw
 - name: PG_USER
@@ -34,6 +29,20 @@ Vault. The JWT secret comes from the ESO-materialized brainblocks-secrets.
     secretKeyRef: { name: {{ include "brainblocks.name" . }}-pg-app, key: dbname }
 - name: DATABASE_URL
   value: "postgresql://$(PG_USER):$(PG_PASS)@$(PG_HOST):5432/$(PG_DB)?schema=public"
+{{- end -}}
+
+{{/*
+Backend (API) environment = DB env + app config. The JWT secret comes from the
+ESO-materialized brainblocks-secrets.
+*/}}
+{{- define "brainblocks.appEnv" -}}
+- name: NODE_ENV
+  value: {{ .Values.env.NODE_ENV | default "production" | quote }}
+- name: PORT
+  value: {{ .Values.backend.port | quote }}
+- name: APP_VERSION
+  value: {{ .Values.image.tag | quote }}
+{{ include "brainblocks.dbEnv" . }}
 - name: JWT_SECRET
   valueFrom:
     secretKeyRef: { name: {{ .Values.externalSecret.secretName }}, key: jwt_secret }

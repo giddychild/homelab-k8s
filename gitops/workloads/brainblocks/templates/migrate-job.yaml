@@ -30,14 +30,16 @@ spec:
             - -c
             - |
               for i in $(seq 1 40); do
-                if npx prisma migrate deploy; then
+                if npx prisma migrate deploy 2>/tmp/migrate.err; then
                   # Seed the achievement catalog (idempotent upsert). Best-effort:
                   # log + exit 0 so a seed bug never wedges the deploy.
                   node -e "require('./dist/db/seedAchievements').ensureAchievementsSeeded().then(()=>{console.log('seed ok');process.exit(0)}).catch(e=>{console.error('seed failed (non-fatal):',e);process.exit(0)})"
                   exit 0
                 fi
-                echo "db not ready yet (attempt $i), retrying in 5s..."
+                echo "migrate attempt $i failed (retrying in 5s); last error:"
+                tail -n 5 /tmp/migrate.err 2>/dev/null
                 sleep 5
               done
-              echo "migrations failed after retries"; exit 1
-          env: {{- include "brainblocks.appEnv" . | nindent 12 }}
+              echo "migrations failed after retries"; tail -n 20 /tmp/migrate.err 2>/dev/null; exit 1
+          # DB-only env: migrations must NOT depend on the ESO app secret.
+          env: {{- include "brainblocks.dbEnv" . | nindent 12 }}
