@@ -1,6 +1,6 @@
 # apps-prod overrides. Image tag bumped by CI / ArgoCD Image Updater.
 image:
-  tag: "1.0.4"
+  tag: "1.0.5"
 
 ingress:
   host: brainblocks.apps.giddyland.net
