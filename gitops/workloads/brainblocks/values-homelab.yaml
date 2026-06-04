@@ -1,6 +1,6 @@
 # apps-prod overrides. Image tag bumped by CI / ArgoCD Image Updater.
 image:
-  tag: "1.0.5"
+  tag: "1.0.6"
 
 ingress:
   host: brainblocks.apps.giddyland.net
@@ -30,6 +30,10 @@ inviteCode:
 # Cilium policy allows backend -> discord.com egress.
 loginAlerts:
   enabled: true
+  # To get a PHONE PUSH on every alert, set this to your numeric Discord user ID as a
+  # mention, e.g. "<@123456789012345678>" (Discord -> Settings -> Advanced -> Developer
+  # Mode, then Copy User ID). Plain config (not a secret). Empty = no mention.
+  mention: ""
 
 # Full default-deny + scoped allows. Rollback: set enabled=false, push — ArgoCD
 # removes all CiliumNetworkPolicies in ~60s.
