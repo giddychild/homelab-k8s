@@ -1,6 +1,6 @@
 # apps-prod overrides. Image tag bumped by CI / ArgoCD Image Updater.
 image:
-  tag: "1.0.2"
+  tag: "1.0.5"
 
 ingress:
   host: brainblocks.apps.giddyland.net
@@ -23,6 +23,11 @@ externalSecret:
 # Shared signup access-code. To turn ON: first add `signup_invite_code` to Vault
 # secret/brainblocks/app, THEN set enabled: true (else ESO sync errors). Off for now.
 inviteCode:
+  enabled: false
+
+# Discord login/signup/failed alerts. To turn ON: add `discord_webhook_url` to Vault
+# secret/brainblocks/app, THEN set enabled: true (else ESO sync errors).
+loginAlerts:
   enabled: false
 
 # Full default-deny + scoped allows. Rollback: set enabled=false, push — ArgoCD
