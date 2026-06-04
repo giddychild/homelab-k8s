@@ -8,7 +8,7 @@ image:
   registry: ghcr.io/giddychild
   backend: brainblocks-backend
   frontend: brainblocks-frontend
-  tag: "1.0.1"
+  tag: "1.0.2"
   pullPolicy: IfNotPresent
   pullSecret: ghcr-pull
 
@@ -61,6 +61,12 @@ externalSecret:
   storeRef: vault-backend           # ClusterSecretStore (cross-cluster AppRole)
   vaultPath: brainblocks/app         # secret/brainblocks/app
   secretName: brainblocks-secrets
+
+# Shared signup access-code gate. When enabled, registration requires the code in
+# Vault key `signup_invite_code`. OFF by default — turn on ONLY after adding that key
+# to secret/brainblocks/app (else the ESO sync errors, like cf_tunnel_token).
+inviteCode:
+  enabled: false
 
 networkPolicy:
   enabled: true                     # default-deny + scoped allows

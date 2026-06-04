@@ -50,4 +50,9 @@ ESO-materialized brainblocks-secrets.
   value: {{ .Values.backend.jwtExpiresIn | quote }}
 - name: CORS_ORIGIN
   value: {{ .Values.backend.corsOrigin | quote }}
+{{- if .Values.inviteCode.enabled }}
+- name: SIGNUP_INVITE_CODE
+  valueFrom:
+    secretKeyRef: { name: {{ .Values.externalSecret.secretName }}, key: signup_invite_code }
+{{- end }}
 {{- end -}}
