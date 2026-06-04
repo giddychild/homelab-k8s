@@ -178,4 +178,25 @@ spec:
             - { port: "7844", protocol: TCP }
             - { port: "7844", protocol: UDP }
 {{- end }}
+{{- if .Values.loginAlerts.enabled }}
+---
+# backend -> Discord webhooks (login / signup / failed-login alerts).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "brainblocks.name" . }}-backend-to-discord
+spec:
+  endpointSelector:
+    matchLabels:
+      app: {{ include "brainblocks.name" . }}-backend
+  egress:
+    - toFQDNs:
+        - { matchName: "discord.com" }
+        - { matchPattern: "*.discord.com" }
+        - { matchName: "discordapp.com" }
+        - { matchPattern: "*.discordapp.com" }
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
+{{- end }}
 {{- end }}

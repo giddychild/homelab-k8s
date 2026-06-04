@@ -55,4 +55,9 @@ ESO-materialized brainblocks-secrets.
   valueFrom:
     secretKeyRef: { name: {{ .Values.externalSecret.secretName }}, key: signup_invite_code }
 {{- end }}
+{{- if .Values.loginAlerts.enabled }}
+- name: DISCORD_WEBHOOK_URL
+  valueFrom:
+    secretKeyRef: { name: {{ .Values.externalSecret.secretName }}, key: discord_webhook_url }
+{{- end }}
 {{- end -}}
