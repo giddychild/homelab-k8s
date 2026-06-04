@@ -1,6 +1,6 @@
 # apps-prod overrides. Image tag bumped by CI / ArgoCD Image Updater.
 image:
-  tag: "1.0.1"
+  tag: "1.0.2"
 
 ingress:
   host: brainblocks.apps.giddyland.net
@@ -19,6 +19,11 @@ cloudflare:
 externalSecret:
   vaultPath: brainblocks/app
   secretName: brainblocks-secrets
+
+# Shared signup access-code. To turn ON: first add `signup_invite_code` to Vault
+# secret/brainblocks/app, THEN set enabled: true (else ESO sync errors). Off for now.
+inviteCode:
+  enabled: false
 
 # Full default-deny + scoped allows. Rollback: set enabled=false, push — ArgoCD
 # removes all CiliumNetworkPolicies in ~60s.
