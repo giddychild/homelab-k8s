@@ -30,10 +30,9 @@ inviteCode:
 # Cilium policy allows backend -> discord.com egress.
 loginAlerts:
   enabled: true
-  # To get a PHONE PUSH on every alert, set this to your numeric Discord user ID as a
-  # mention, e.g. "<@123456789012345678>" (Discord -> Settings -> Advanced -> Developer
-  # Mode, then Copy User ID). Plain config (not a secret). Empty = no mention.
-  mention: ""
+  # Numeric Discord user ID as a mention so alerts @-ping (and push to) the phone even
+  # under Discord's "Only @mentions" setting. Plain config (a user ID is not a secret).
+  mention: "<@879937244893417502>"
 
 # Full default-deny + scoped allows. Rollback: set enabled=false, push — ArgoCD
 # removes all CiliumNetworkPolicies in ~60s.
