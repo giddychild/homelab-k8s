@@ -25,10 +25,11 @@ externalSecret:
 inviteCode:
   enabled: false
 
-# Discord login/signup/failed alerts. To turn ON: add `discord_webhook_url` to Vault
-# secret/brainblocks/app, THEN set enabled: true (else ESO sync errors).
+# Discord login/signup/failed alerts. Vault key `discord_webhook_url` is set, so this is
+# ON: ESO surfaces it into brainblocks-secrets, the API gets DISCORD_WEBHOOK_URL, and a
+# Cilium policy allows backend -> discord.com egress.
 loginAlerts:
-  enabled: false
+  enabled: true
 
 # Full default-deny + scoped allows. Rollback: set enabled=false, push — ArgoCD
 # removes all CiliumNetworkPolicies in ~60s.
