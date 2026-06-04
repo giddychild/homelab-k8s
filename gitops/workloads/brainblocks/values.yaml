@@ -8,7 +8,7 @@ image:
   registry: ghcr.io/giddychild
   backend: brainblocks-backend
   frontend: brainblocks-frontend
-  tag: "1.0.5"
+  tag: "1.0.6"
   pullPolicy: IfNotPresent
   pullSecret: ghcr-pull
 
@@ -73,6 +73,7 @@ inviteCode:
 # discord.com. OFF by default — add the Vault key BEFORE enabling (else ESO errors).
 loginAlerts:
   enabled: false
+  mention: ""                       # numeric Discord user ID mention for phone push
 
 networkPolicy:
   enabled: true                     # default-deny + scoped allows
