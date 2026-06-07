@@ -1,6 +1,6 @@
 # apps-prod overrides. Image tags bumped by CI / ArgoCD Image Updater.
 image:
-  tag: "0.3.33"
+  tag: "0.3.35"
 
 postgres:
   backup:
