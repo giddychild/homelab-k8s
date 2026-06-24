@@ -1,0 +1,21 @@
+# apps-prod overrides for CareLedger.
+image:
+  tag: "1.0.0"
+
+ingress:
+  host: care.apps.giddyland.net
+  clusterIssuer: letsencrypt-prod
+
+# Public access via Cloudflare Tunnel. The public hostname route
+# care.giddyland.net -> careledger:3000 is set in the Zero Trust dashboard;
+# only the tunnel token lives here.
+# REQUIRES Vault key cf_tunnel_token in secret/careledger/app BEFORE this merges,
+# or the ESO sync errors (same footgun as learnquest/brainblocks).
+cloudflare:
+  publicHost: care.giddyland.net
+  tunnel:
+    enabled: true
+
+externalSecret:
+  vaultPath: careledger/app
+  secretName: careledger-secrets
