@@ -32,7 +32,11 @@ spec:
                 - name: PROM_URL
                   value: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
                 - name: CHANGE_THRESHOLD
-                  value: "1"    # post only if CPU/Mem/Disk moved >= this % over 15m
+                  # post only if CPU/Mem/Disk moved >= this % over 15m. 1% was
+                  # too noisy (~20-30 pings/day from natural CPU/mem fluctuation).
+                  # 5% catches real workload spikes + sustained drift without
+                  # flooding the channel.
+                  value: "5"
                 - name: DISCORD_URL
                   valueFrom:
                     secretKeyRef:

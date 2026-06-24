@@ -13,6 +13,28 @@ spec:
     targetRevision: 85.3.3
     helm:
       valuesObject:
+        # Silence Talos-incompatible component monitoring (these would otherwise
+        # produce constant noise alerts: KubeSchedulerInstanceUnreachable,
+        # KubeControllerManagerInstanceUnreachable, KubeProxyDown).
+        #
+        # Why: Talos binds kube-scheduler and kube-controller-manager to
+        # localhost only (no remote scrape possible), and Cilium replaces
+        # kube-proxy entirely (no kube-proxy pod exists). These aren't
+        # outages — they're architectural choices.
+        kubeScheduler:
+          enabled: false
+        kubeControllerManager:
+          enabled: false
+        kubeProxy:
+          enabled: false
+        # Belt-and-suspenders: also drop the default-rules groups that would
+        # alert on those metrics even with scraping off (some rules absent()-
+        # check the targets, which would fire "TargetDown" otherwise).
+        defaultRules:
+          rules:
+            kubeScheduler: false
+            kubeControllerManager: false
+            kubeProxy: false
         grafana:
           # Grafana's PVC is ReadWriteOnce, so a RollingUpdate deadlocks (new pod can't
           # attach the volume until the old one releases it → Multi-Attach). Recreate
