@@ -1,6 +1,6 @@
 # apps-prod overrides for CareLedger.
 image:
-  tag: "1.0.0"
+  tag: "1.0.1"
 
 ingress:
   host: care.apps.giddyland.net
