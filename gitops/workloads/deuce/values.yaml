@@ -9,7 +9,7 @@ nameOverride: ""
 image:
   registry: ghcr.io/giddychild
   repository: deuce
-  tag: "1.0.0"
+  tag: "1.1.0"
   pullPolicy: IfNotPresent
   pullSecret: ghcr-pull
 
