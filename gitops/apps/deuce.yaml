@@ -1,0 +1,32 @@
+# Child Application — homelab ArgoCD (hub) deploys The Deuce Lounge (club
+# income/expense tracker) to the apps-prod cluster (hub-and-spoke), sibling of
+# careledger/brainblocks/learnquest/money. Chart lives in this public repo
+# (secret-free); app secrets come from Vault via ESO (cross-cluster AppRole).
+# App source is the private giddychild/deuce repo; image in GHCR (pulled via
+# ghcr-pull). Same pattern as careledger.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: deuce
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/giddychild/homelab-k8s.git
+    targetRevision: main
+    path: gitops/workloads/deuce
+    helm:
+      valueFiles:
+        - values-homelab.yaml
+  destination:
+    server: https://192.168.216.204:6443   # apps-prod
+    namespace: deuce
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

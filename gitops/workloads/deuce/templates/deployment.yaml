@@ -1,0 +1,49 @@
+# Single-replica Next.js app. Strategy is Recreate (never two pods on the SQLite
+# file). The image entrypoint runs `prisma migrate deploy` then starts the server.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "deuce.name" . }}
+  labels: {{- include "deuce.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: {{ include "deuce.name" . }} }
+  template:
+    metadata:
+      labels:
+        app: {{ include "deuce.name" . }}
+        {{- include "deuce.labels" . | nindent 8 }}
+    spec:
+      {{- if .Values.image.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.image.pullSecret }}
+      {{- end }}
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: app
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.app.port }}
+          env:
+            {{- include "deuce.env" . | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+          readinessProbe:
+            httpGet: { path: /login, port: {{ .Values.app.port }} }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: {{ .Values.app.port }} }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "deuce.name" . }}-data

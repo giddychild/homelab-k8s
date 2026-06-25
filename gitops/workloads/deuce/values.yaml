@@ -1,0 +1,66 @@
+# Default values for The Deuce Lounge. Overridden by values-homelab.yaml for
+# apps-prod. The Deuce Lounge is a single Next.js service (UI + API in one
+# process) backed by a SQLite file on a Longhorn PVC. Because SQLite is a
+# single-writer file DB, this app runs as ONE replica with a Recreate strategy —
+# never scale it up. Conventions mirror careledger/brainblocks/learnquest (ESO
+# from Vault, ghcr-pull, Cloudflare Tunnel for public access).
+nameOverride: ""
+
+image:
+  registry: ghcr.io/giddychild
+  repository: deuce
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+  pullSecret: ghcr-pull
+
+app:
+  port: 3000
+  # NEXTAUTH_URL — the primary public hostname. AUTH_TRUST_HOST=true means the
+  # LAN host (deuce.apps.giddyland.net) also works; sessions are per-hostname.
+  publicUrl: "https://deuce.giddyland.net"
+  maxUploadMb: "15"
+
+# SQLite on a single RWO volume → exactly one replica, Recreate (no two pods may
+# open the DB file at once).
+persistence:
+  enabled: true
+  storageClass: longhorn        # default (3 replicas) for DB durability
+  size: 5Gi
+  mountPath: /app/data
+
+resources:
+  requests: { cpu: 50m, memory: 192Mi }
+  limits: { cpu: "1", memory: 512Mi }
+
+ingress:
+  enabled: true
+  className: nginx
+  host: deuce.apps.giddyland.net
+  clusterIssuer: letsencrypt-prod
+  tls: true
+
+# Public exposure via Cloudflare Tunnel (cloudflared dials out; no inbound ports).
+# The Deuce Lounge is a single service, so the public hostname route is just
+# deuce.giddyland.net -> deuce:3000 (configured in the Zero Trust dashboard).
+# Only the tunnel token is needed here (Vault key cf_tunnel_token).
+cloudflare:
+  publicHost: deuce.giddyland.net
+  tunnel:
+    enabled: false
+    image: cloudflare/cloudflared:2026.5.2
+    replicas: 2
+
+externalSecret:
+  enabled: true
+  storeRef: vault-backend            # ClusterSecretStore (cross-cluster AppRole)
+  vaultPath: deuce/app               # secret/deuce/app
+  secretName: deuce-secrets
+
+# Discord alerts on login / failed login / join. When enabled, the app posts to
+# the webhook in Vault key `discord_webhook_url`. OFF by default — add that Vault
+# key BEFORE enabling, or the ESO sync errors (same footgun as cf_tunnel_token).
+loginAlerts:
+  enabled: false
+
+networkPolicy:
+  enabled: false                     # start open; tighten after first deploy

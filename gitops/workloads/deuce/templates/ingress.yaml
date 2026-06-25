@@ -1,0 +1,29 @@
+{{- if .Values.ingress.enabled }}
+# LAN/internal ingress (nginx + cert-manager LE). Public access is via the
+# Cloudflare Tunnel. The Deuce Lounge is a single service, so one path covers it.
+# Requires a DNS-only A record deuce.apps.giddyland.net -> apps-prod ingress IP.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "deuce.name" . }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer }}
+    nginx.ingress.kubernetes.io/proxy-body-size: "{{ .Values.app.maxUploadMb }}m"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts: [{{ .Values.ingress.host | quote }}]
+      secretName: {{ include "deuce.name" . }}-tls
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "deuce.name" . }}
+                port: { number: {{ .Values.app.port }} }
+{{- end }}

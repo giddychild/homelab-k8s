@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "deuce.name" . }}
+  labels: {{- include "deuce.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: {{ include "deuce.name" . }}
+  ports:
+    - name: http
+      port: {{ .Values.app.port }}
+      targetPort: {{ .Values.app.port }}

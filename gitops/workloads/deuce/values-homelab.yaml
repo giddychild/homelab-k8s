@@ -1,0 +1,28 @@
+# apps-prod overrides for The Deuce Lounge.
+image:
+  tag: "1.0.0"
+
+ingress:
+  host: deuce.apps.giddyland.net
+  clusterIssuer: letsencrypt-prod
+
+# Public access via Cloudflare Tunnel. The public hostname route
+# deuce.giddyland.net -> deuce:3000 is set in the Zero Trust dashboard;
+# only the tunnel token lives here.
+# REQUIRES Vault key cf_tunnel_token in secret/deuce/app BEFORE this merges,
+# or the ESO sync errors (same footgun as careledger/learnquest/brainblocks).
+cloudflare:
+  publicHost: deuce.giddyland.net
+  tunnel:
+    enabled: true
+
+externalSecret:
+  vaultPath: deuce/app
+  secretName: deuce-secrets
+
+# Discord login/failed-login/join alerts. ON for apps-prod.
+# REQUIRES Vault key `discord_webhook_url` in secret/deuce/app BEFORE this
+# merges, or the ESO sync errors. Add it with:
+#   vault kv patch secret/deuce/app discord_webhook_url=<your-webhook-url>
+loginAlerts:
+  enabled: true
