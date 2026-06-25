@@ -1,0 +1,31 @@
+# Child Application — homelab ArgoCD (hub) deploys CareLedger (family medical-fund
+# tracker) to the apps-prod cluster (hub-and-spoke), sibling of brainblocks/learnquest/
+# money. Chart lives in this public repo (secret-free); app secrets come from Vault via
+# ESO (cross-cluster AppRole). App source is the private giddychild/careledger repo;
+# image in GHCR (pulled via ghcr-pull). Same pattern as brainblocks.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: careledger
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/giddychild/homelab-k8s.git
+    targetRevision: main
+    path: gitops/workloads/careledger
+    helm:
+      valueFiles:
+        - values-homelab.yaml
+  destination:
+    server: https://192.168.216.204:6443   # apps-prod
+    namespace: careledger
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

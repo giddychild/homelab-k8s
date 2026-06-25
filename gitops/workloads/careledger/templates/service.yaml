@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "careledger.name" . }}
+  labels: {{- include "careledger.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: {{ include "careledger.name" . }}
+  ports:
+    - name: http
+      port: {{ .Values.app.port }}
+      targetPort: {{ .Values.app.port }}
