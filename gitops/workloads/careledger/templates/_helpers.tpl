@@ -42,4 +42,9 @@ mounted volume before starting the server.
 - name: JOIN_CODE
   valueFrom:
     secretKeyRef: { name: {{ .Values.externalSecret.secretName }}, key: join_code }
+{{- if .Values.loginAlerts.enabled }}
+- name: DISCORD_WEBHOOK_URL
+  valueFrom:
+    secretKeyRef: { name: {{ .Values.externalSecret.secretName }}, key: discord_webhook_url }
+{{- end }}
 {{- end -}}
