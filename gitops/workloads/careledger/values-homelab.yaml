@@ -1,6 +1,6 @@
 # apps-prod overrides for CareLedger.
 image:
-  tag: "1.0.1"
+  tag: "1.0.2"
 
 ingress:
   host: care.apps.giddyland.net
@@ -19,3 +19,10 @@ cloudflare:
 externalSecret:
   vaultPath: careledger/app
   secretName: careledger-secrets
+
+# Discord login/failed-login/join alerts. ON for apps-prod.
+# REQUIRES Vault key `discord_webhook_url` in secret/careledger/app BEFORE this
+# merges, or the ESO sync errors. Add it with:
+#   vault kv patch secret/careledger/app discord_webhook_url=<your-webhook-url>
+loginAlerts:
+  enabled: true

@@ -56,5 +56,11 @@ externalSecret:
   vaultPath: careledger/app          # secret/careledger/app
   secretName: careledger-secrets
 
+# Discord alerts on login / failed login / join. When enabled, the app posts to
+# the webhook in Vault key `discord_webhook_url`. OFF by default — add that Vault
+# key BEFORE enabling, or the ESO sync errors (same footgun as cf_tunnel_token).
+loginAlerts:
+  enabled: false
+
 networkPolicy:
   enabled: false                     # start open; tighten after first deploy
