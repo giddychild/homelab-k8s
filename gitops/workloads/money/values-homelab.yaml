@@ -22,6 +22,12 @@ externalSecrets:
   credentialKey: true
   # smtp_password is in Vault (Gmail app password) → sync it for email reset.
   smtpPassword: true
+  # discord_webhook_url is in Vault → sync it. Turning this on also creates
+  # the money-api-to-discord CiliumNetworkPolicy (egress allow to discord.com
+  # / discordapp.com), and money.appEnv mounts DISCORD_WEBHOOK_URL from the
+  # secret. The API posts a message on every successful login + new signup
+  # (best-effort, fire-and-forget).
+  discordWebhook: true
 
 # Email-based password reset via Gmail SMTP.
 email:

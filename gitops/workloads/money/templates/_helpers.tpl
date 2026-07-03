@@ -86,13 +86,15 @@ app.kubernetes.io/component: {{ .component }}
 - name: ADMIN_EMAILS
   value: {{ .Values.adminEmails | default "" | quote }}
 # Optional: best-effort Discord login/sign-up alerts. Present only once
-# discord_webhook is in Vault and externalSecrets.discordWebhook is enabled;
-# optional=true so pods start without it.
+# discord_webhook_url is in Vault and externalSecrets.discordWebhook is
+# enabled; optional=true so pods start without it. Vault key name matches
+# the fleet-wide convention (brainblocks, careledger, deuce all use
+# discord_webhook_url — was `discord_webhook` here until 2026-07-03).
 - name: DISCORD_WEBHOOK_URL
   valueFrom:
     secretKeyRef:
       name: {{ .Values.externalSecrets.targetSecretName }}
-      key: discord_webhook
+      key: discord_webhook_url
       optional: true
 # Email (SMTP) for password-reset links. Disabled unless email.enabled + creds.
 - name: EMAIL_ENABLED
