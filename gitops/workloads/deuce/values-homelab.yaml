@@ -1,6 +1,6 @@
 # apps-prod overrides for The Deuce Lounge.
 image:
-  tag: "1.1.0"
+  tag: "1.2.0"
 
 ingress:
   host: deuce.apps.giddyland.net
