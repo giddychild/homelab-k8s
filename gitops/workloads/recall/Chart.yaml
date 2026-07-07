@@ -1,0 +1,6 @@
+apiVersion: v2
+name: recall
+description: AI Meeting Recorder & Project Memory
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

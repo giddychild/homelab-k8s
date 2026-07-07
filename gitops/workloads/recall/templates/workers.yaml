@@ -1,0 +1,37 @@
+{{- range $name, $w := .Values.workers }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recall-worker-{{ $name }}
+  labels:
+    {{- include "recall.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: worker-{{ $name }}
+spec:
+  replicas: {{ $w.replicas }}
+  selector:
+    matchLabels: { app.kubernetes.io/name: recall, app.kubernetes.io/component: worker-{{ $name }} }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: recall, app.kubernetes.io/component: worker-{{ $name }} }
+    spec:
+      imagePullSecrets:
+        - name: {{ $.Values.image.pullSecret }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: worker
+          image: {{ include "recall.apiImage" $ }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          command: ["arq", {{ $w.settings | quote }}]
+          env:
+            {{- include "recall.appEnv" $ | nindent 12 }}
+          volumeMounts:
+            {{- include "recall.secretVolumeMounts" $ | nindent 12 }}
+          resources:
+            {{- toYaml $w.resources | nindent 12 }}
+      volumes:
+        {{- include "recall.secretVolumes" $ | nindent 8 }}
+---
+{{- end }}

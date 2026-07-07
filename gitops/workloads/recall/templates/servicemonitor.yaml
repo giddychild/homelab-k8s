@@ -1,0 +1,15 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: recall-api
+  labels:
+    {{- include "recall.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: recall }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+{{- end }}

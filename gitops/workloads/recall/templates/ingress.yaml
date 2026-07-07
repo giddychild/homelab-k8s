@@ -1,0 +1,33 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: recall
+  labels:
+    {{- include "recall.labels" . | nindent 4 }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer }}
+    nginx.ingress.kubernetes.io/proxy-body-size: "512m"   # allow audio uploads (also presigned-direct)
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts: [{{ .Values.ingress.host | quote }}]
+      secretName: {{ .Values.ingress.tlsSecret }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          # /api -> api. When web is disabled (P0), / also routes to api.
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: recall-api
+                port: { number: 8000 }
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ if .Values.web.enabled }}recall-web{{ else }}recall-api{{ end }}
+                port: { number: {{ if .Values.web.enabled }}3000{{ else }}8000{{ end }} }
+{{- end }}

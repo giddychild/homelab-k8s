@@ -1,0 +1,128 @@
+# Default values. The homelab overlay (values-homelab.yaml) sets image tags + env for apps-prod.
+nameOverride: ""
+namespace: recall
+
+image:
+  registry: ghcr.io/giddychild
+  api:
+    repository: recall-api
+    tag: "0.1.0"
+  web:
+    repository: recall-web
+    tag: "0.1.0"
+  pullPolicy: IfNotPresent
+  pullSecret: ghcr-pull
+
+api:
+  replicas: 2
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: "1", memory: 768Mi }
+  hpa:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 75
+
+web:
+  enabled: false          # P0 is API-first; flipped on in P1
+  replicas: 2
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+workers:
+  transcribe:
+    replicas: 1
+    settings: app.worker.TranscribeWorkerSettings
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+      limits: { cpu: "2", memory: 2Gi }
+  ai:
+    replicas: 1
+    settings: app.worker.AiWorkerSettings
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: "1", memory: 1Gi }
+  general:
+    replicas: 1
+    settings: app.worker.GeneralWorkerSettings
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: 500m, memory: 512Mi }
+
+redis:
+  storageClass: longhorn-r1
+  storageSize: 2Gi
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+postgres:
+  # CloudNativePG cluster
+  instances: 2
+  storageClass: longhorn-r2
+  storageSize: 10Gi
+  image: ghcr.io/cloudnative-pg/postgresql:16-system-bookworm
+  backup:
+    enabled: false
+    bucket: giddyland-recall-pg-backups
+    endpointURL: ""
+    scheduleCron: "0 30 3 * * *"
+
+ingress:
+  enabled: true
+  className: nginx
+  host: recall.apps.giddyland.net
+  clusterIssuer: letsencrypt-staging   # switch to letsencrypt-prod after staging validates
+  tlsSecret: recall-tls
+
+externalSecrets:
+  enabled: true
+  secretStore: vault-backend
+  vaultPath: recall/app
+  # keys expected in Vault secret/recall/app
+  keys:
+    - jwt_private_key
+    - jwt_public_key
+    - credential_key
+    - s3_access_key_id
+    - s3_secret_access_key
+    - anthropic_api_key
+    - groq_api_key
+
+config:
+  environment: production
+  # Canonical public URL (Cloudflare Tunnel). recall.apps.giddyland.net stays as the internal
+  # LAN/Tailscale ingress host + tunnel origin. Both are allowed as CORS origins.
+  publicBaseUrl: https://recall.giddyland.net
+  corsOrigins: "https://recall.giddyland.net,https://recall.apps.giddyland.net"
+  registrationMode: closed
+  adminEmails: ""
+  aiProvider: anthropic
+  embeddingProvider: ollama
+  transcriptionProvider: groq
+  blobStore: s3
+  s3Region: us-east-1
+  s3BucketAudio: giddyland-recall-audio
+  s3EndpointUrl: ""                    # empty = real AWS
+  ollamaUrl: http://ollama.ai-ops.svc.cluster.local:11434
+  anthropicModel: claude-opus-4-8
+  groqModel: whisper-large-v3-turbo
+  embeddingModel: nomic-embed-text
+
+migrate:
+  enabled: true
+  runSeed: true
+
+networkPolicy:
+  enabled: false          # enable in P4/P5 once ingress/redis/pg/egress allows are verified
+
+serviceMonitor:
+  enabled: false          # no Prometheus operator on apps-prod
+
+cloudflare:
+  tunnel:
+    enabled: false
+    image: cloudflare/cloudflared:2026.5.2
+    replicas: 2

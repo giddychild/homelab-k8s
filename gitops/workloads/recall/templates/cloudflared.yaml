@@ -1,0 +1,28 @@
+{{- if .Values.cloudflare.tunnel.enabled }}
+# Public access at recall.giddyland.net. The tunnel's public-hostname config (in the CF dashboard)
+# should point at the ingress-nginx controller (HTTPS, host + SNI = recall.apps.giddyland.net) so
+# the existing Ingress routes both web and /api. Token comes from Vault via ESO.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recall-cloudflared
+  labels:
+    {{- include "recall.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cloudflared
+spec:
+  replicas: {{ .Values.cloudflare.tunnel.replicas }}
+  selector:
+    matchLabels: { app.kubernetes.io/name: recall, app.kubernetes.io/component: cloudflared }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: recall, app.kubernetes.io/component: cloudflared }
+    spec:
+      containers:
+        - name: cloudflared
+          image: {{ .Values.cloudflare.tunnel.image }}
+          args: ["tunnel", "--no-autoupdate", "run", "--token", "$(TUNNEL_TOKEN)"]
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef: { name: recall-secrets, key: cf_tunnel_token }
+{{- end }}

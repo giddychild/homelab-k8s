@@ -1,0 +1,42 @@
+{{- if .Values.networkPolicy.enabled }}
+# Default-deny + explicit allows. Enable in P4/P5 once every path is verified.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: recall-default-deny
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: recall
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: recall
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: ingress-nginx
+  egress:
+    # intra-app (api <-> redis <-> pg <-> workers)
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: recall
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: recall-pg
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports: [{ port: "53", protocol: UDP }]
+    # Ollama on ai-ops (embeddings / fallback)
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: ai-ops
+      toPorts:
+        - ports: [{ port: "11434", protocol: TCP }]
+    # egress to the internet (S3 / Anthropic / Groq) — 443
+    - toEntities: ["world"]
+      toPorts:
+        - ports: [{ port: "443", protocol: TCP }]
+{{- end }}

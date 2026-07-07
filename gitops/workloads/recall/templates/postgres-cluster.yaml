@@ -1,0 +1,45 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: recall-pg
+  labels:
+    {{- include "recall.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.postgres.instances }}
+  imageName: {{ .Values.postgres.image }}
+  storage:
+    size: {{ .Values.postgres.storageSize }}
+    storageClass: {{ .Values.postgres.storageClass }}
+  bootstrap:
+    initdb:
+      database: recall
+      owner: recall
+      # pgvector must be created by a superuser (the app owner cannot CREATE EXTENSION).
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector
+  {{- if .Values.postgres.backup.enabled }}
+  backup:
+    barmanObjectStore:
+      destinationPath: "s3://{{ .Values.postgres.backup.bucket }}/recall-pg"
+      {{- if .Values.postgres.backup.endpointURL }}
+      endpointURL: {{ .Values.postgres.backup.endpointURL }}
+      {{- end }}
+      s3Credentials:
+        accessKeyId:
+          secretKeyRef: { name: recall-pg-backup-s3, key: access_key_id }
+        secretAccessKey:
+          secretKeyRef: { name: recall-pg-backup-s3, key: secret_access_key }
+    retentionPolicy: "30d"
+  {{- end }}
+{{- if .Values.postgres.backup.enabled }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: recall-pg-daily
+spec:
+  schedule: {{ .Values.postgres.backup.scheduleCron | quote }}
+  backupOwnerReference: self
+  cluster:
+    name: recall-pg
+{{- end }}

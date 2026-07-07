@@ -1,0 +1,45 @@
+# apps-prod overlay. Image tags bumped here per release (ArgoCD watches this file in the
+# homelab-k8s GitOps repo copy of the chart).
+image:
+  api:
+    tag: "0.1.0"
+  web:
+    tag: "0.1.0"
+
+# Web UI is built + CI-verified — deploy the full app.
+web:
+  enabled: true
+
+ingress:
+  host: recall.apps.giddyland.net
+  clusterIssuer: letsencrypt-staging   # validate, then switch to letsencrypt-prod
+
+postgres:
+  instances: 2
+  backup:
+    enabled: false                     # turn on once the S3 bucket + creds exist
+
+config:
+  environment: production
+  # open so you can create the first account on first visit; close it after (bump this to
+  # "closed" or "invite" in a follow-up PR).
+  registrationMode: open
+  # set to your Recall login email to get the admin flag
+  adminEmails: ""
+  # AI + audio start on the safe/no-cost path so the app runs before keys/buckets exist.
+  # Flip these to anthropic / groq / s3 once Vault has the keys + the S3 bucket exists.
+  aiProvider: "null"
+  embeddingProvider: "null"
+  transcriptionProvider: "null"
+  blobStore: localfs
+  s3BucketAudio: giddyland-recall-audio
+
+networkPolicy:
+  enabled: false                       # P4/P5
+
+serviceMonitor:
+  enabled: false
+
+cloudflare:
+  tunnel:
+    enabled: false                     # public recall.giddyland.net turned on later
