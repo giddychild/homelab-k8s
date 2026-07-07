@@ -65,9 +65,9 @@ recall-pg-app holds IS the password.
 - name: EMBEDDING_MODEL
   value: {{ .Values.config.embeddingModel | quote }}
 - name: JWT_PRIVATE_KEY_PATH
-  value: /run/secrets/jwt_private_key
+  value: /etc/recall-keys/jwt_private_key
 - name: JWT_PUBLIC_KEY_PATH
-  value: /run/secrets/jwt_public_key
+  value: /etc/recall-keys/jwt_public_key
 {{- if .Values.externalSecrets.enabled }}
 - name: CREDENTIAL_KEY
   valueFrom:
@@ -99,6 +99,6 @@ recall-pg-app holds IS the password.
 
 {{- define "recall.secretVolumeMounts" -}}
 - name: jwt-keys
-  mountPath: /run/secrets
+  mountPath: /etc/recall-keys   # NOT /run/secrets — that collides with the SA token mount
   readOnly: true
 {{- end -}}
