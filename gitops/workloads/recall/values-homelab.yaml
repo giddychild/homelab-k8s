@@ -2,7 +2,7 @@
 # homelab-k8s GitOps repo copy of the chart).
 image:
   api:
-    tag: "0.1.0"
+    tag: "0.1.1"   # worker redis_settings fix
   web:
     tag: "0.1.0"
 
