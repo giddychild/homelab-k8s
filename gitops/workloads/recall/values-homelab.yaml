@@ -42,4 +42,4 @@ serviceMonitor:
 
 cloudflare:
   tunnel:
-    enabled: false                     # public recall.giddyland.net turned on later
+    enabled: true                      # public recall.giddyland.net via Cloudflare Tunnel

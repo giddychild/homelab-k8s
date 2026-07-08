@@ -1,7 +1,8 @@
 {{- if .Values.cloudflare.tunnel.enabled }}
-# Public access at recall.giddyland.net. The tunnel's public-hostname config (in the CF dashboard)
-# should point at the ingress-nginx controller (HTTPS, host + SNI = recall.apps.giddyland.net) so
-# the existing Ingress routes both web and /api. Token comes from Vault via ESO.
+# Public access at recall.giddyland.net. The recall web image bakes API_INTERNAL_URL and proxies
+# /api itself, so the tunnel's public-hostname (configured in the CF dashboard) points straight at
+# the web Service — HTTP http://recall-web.recall.svc.cluster.local:3000 — no Host-header/SNI or
+# split-route hack needed (unlike money/learnquest). Token comes from Vault via ESO.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
