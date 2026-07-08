@@ -2,9 +2,9 @@
 # homelab-k8s GitOps repo copy of the chart).
 image:
   api:
-    tag: "0.1.1"   # worker redis_settings fix
+    tag: "0.2.0"   # P5 extraction + P6 project brain + P7 semantic search & RAG chat
   web:
-    tag: "0.1.4"   # android icon cache fix + install banner + installable PWA
+    tag: "0.1.5"   # Knowledge / Brain / Chat UI
 
 # Web UI is built + CI-verified — deploy the full app.
 web:
