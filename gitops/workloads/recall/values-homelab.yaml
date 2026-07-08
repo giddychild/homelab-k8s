@@ -4,7 +4,7 @@ image:
   api:
     tag: "0.1.1"   # worker redis_settings fix
   web:
-    tag: "0.1.0"
+    tag: "0.1.2"   # brand icon + installable PWA
 
 # Web UI is built + CI-verified — deploy the full app.
 web:
