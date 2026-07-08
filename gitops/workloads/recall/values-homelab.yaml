@@ -4,7 +4,7 @@ image:
   api:
     tag: "0.1.1"   # worker redis_settings fix
   web:
-    tag: "0.1.3"   # version footer + install banner + installable PWA
+    tag: "0.1.4"   # android icon cache fix + install banner + installable PWA
 
 # Web UI is built + CI-verified — deploy the full app.
 web:
