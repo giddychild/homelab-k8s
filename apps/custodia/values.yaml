@@ -44,7 +44,7 @@ objectStore:
 ollama:
   # Optional in-cluster Ollama for P2 AI extraction (CPU here; pull a model
   # after rollout). Off by default — upload/text extraction works without it.
-  deploy: false
+  deploy: true
   storageSize: 20Gi
   memoryLimit: 8Gi
 
