@@ -5,7 +5,7 @@ image:
   registry: ghcr.io/giddychild
   api: custodia-api
   web: custodia-web
-  tag: "0.2.2"
+  tag: "0.3.0"
   pullPolicy: IfNotPresent
   pullSecret: ghcr-creds   # docker-registry secret for private GHCR images
 
@@ -41,9 +41,16 @@ objectStore:
   endpoint: http://minio.storage.svc:9000
   bucket: custodia
 
+ollama:
+  # Optional in-cluster Ollama for P2 AI extraction (CPU here; pull a model
+  # after rollout). Off by default — upload/text extraction works without it.
+  deploy: false
+  storageSize: 20Gi
+  memoryLimit: 8Gi
+
 ai:
   defaultProvider: ollama     # local-first: documents stay in-cluster
-  ollamaBaseUrl: http://ollama.custodia-prod.svc:11434
+  ollamaBaseUrl: http://custodia-ollama.custodia-prod.svc:11434
   embedModel: "nomic-embed-text"
   # No GPU-schedulable node in the cluster today (no nvidia.com/gpu advertised).
   # CPU mode uses a smaller model so background extraction stays tolerable.

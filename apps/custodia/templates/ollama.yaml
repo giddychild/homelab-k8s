@@ -1,0 +1,54 @@
+{{- if .Values.ollama.deploy }}
+# Optional in-cluster Ollama for local-first AI extraction (P2). CPU-only here
+# (no GPU node); pull a model after rollout:
+#   kubectl -n {{ .Values.namespace }} exec deploy/custodia-ollama -- \
+#     ollama pull {{ .Values.ai.extractModel }}
+# For good extraction quality use qwen2.5:7b-instruct+ (slow on CPU) or opt a
+# case into hosted Claude. Without this, upload/text extraction still works;
+# only AI rule proposals are skipped.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custodia-ollama
+  namespace: {{ .Values.namespace }}
+  labels: { app: custodia, component: ollama }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: custodia, component: ollama }
+  template:
+    metadata:
+      labels: { app: custodia, component: ollama }
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          ports: [{ containerPort: 11434 }]
+          volumeMounts:
+            - { name: models, mountPath: /root/.ollama }
+          resources:
+            requests: { cpu: 500m, memory: 2Gi }
+            limits:   { cpu: "6", memory: {{ .Values.ollama.memoryLimit }} }
+      volumes:
+        - name: models
+          persistentVolumeClaim: { claimName: custodia-ollama-models }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: custodia-ollama-models
+  namespace: {{ .Values.namespace }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources: { requests: { storage: {{ .Values.ollama.storageSize }} } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: custodia-ollama
+  namespace: {{ .Values.namespace }}
+spec:
+  selector: { app: custodia, component: ollama }
+  ports: [{ port: 11434, targetPort: 11434 }]
+{{- end }}
