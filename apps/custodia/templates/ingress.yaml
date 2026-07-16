@@ -1,0 +1,29 @@
+{{- if .Values.ingress.enabled }}
+# Matches the cluster's standard pattern: nginx ingress + cert-manager TLS at
+# <app>.apps.giddyland.net. The LB IP is private, so this is reachable on the
+# LAN/VPN/Tailscale only — not the public internet. Everything routes to the
+# web pod, which proxies /api/* to the API in-cluster (app/api/[...path]).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: custodia
+  namespace: {{ .Values.namespace }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer }}
+    nginx.ingress.kubernetes.io/proxy-body-size: "32m"   # document uploads (P2)
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: custodia-web
+                port: { number: 80 }
+  tls:
+    - hosts: [{{ .Values.ingress.host }}]
+      secretName: {{ .Values.ingress.tlsSecret }}
+{{- end }}

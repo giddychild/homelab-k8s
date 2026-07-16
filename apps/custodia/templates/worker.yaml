@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custodia-worker-rules
+  namespace: {{ .Values.namespace }}
+  labels: { app: custodia, component: worker-rules }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: custodia, component: worker-rules }
+  template:
+    metadata:
+      labels: { app: custodia, component: worker-rules }
+    spec:
+      {{- if .Values.image.pullSecret }}
+      imagePullSecrets: [{ name: {{ .Values.image.pullSecret }} }]
+      {{- end }}
+      securityContext: { runAsNonRoot: true, runAsUser: 10002 }
+      containers:
+        - name: worker
+          image: "{{ .Values.image.registry }}/custodia-worker:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom: [{ secretRef: { name: custodia-secrets } }]
+          env:
+            - { name: CUSTODIA_REDIS_URL, value: "{{ .Values.redis.url }}" }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: "1", memory: 512Mi }

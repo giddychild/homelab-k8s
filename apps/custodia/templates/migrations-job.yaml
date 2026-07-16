@@ -1,0 +1,20 @@
+# Runs schema migrations before each rollout. ArgoCD executes PreSync hooks and
+# waits for success before syncing the Deployments.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: custodia-migrate-{{ .Values.image.tag }}
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.registry }}/{{ .Values.image.api }}:{{ .Values.image.tag }}"
+          command: ["python", "-m", "app.migrate"]   # applies db/migrations/*.sql in order
+          envFrom: [{ secretRef: { name: custodia-secrets } }]

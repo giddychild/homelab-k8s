@@ -1,0 +1,70 @@
+namespace: custodia-prod
+image:
+  # No in-cluster registry exists; default to GHCR under your account.
+  # Push there (RUNBOOK §3) or override for a different registry.
+  registry: ghcr.io/giddychild
+  api: custodia-api
+  web: custodia-web
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+  pullSecret: ""   # name of a docker-registry secret if the images are private
+
+api:
+  replicas: { min: 2, max: 8 }
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: "1",  memory: 512Mi }
+
+web:
+  enabled: true    # P1: Next.js UI (month calendar + provenance)
+  replicas: { min: 2, max: 6 }
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 384Mi }
+
+# Reuse the platform: reference existing components, do not recreate them.
+database:
+  # Set create=true to provision a dedicated CloudNativePG cluster; otherwise
+  # point at a database in the shared instance via existingSecret.
+  create: true
+  cluster: custodia-db
+  instances: 2
+  storageSize: 20Gi
+  existingSecret: ""          # k8s secret with the app connection string
+
+redis:
+  url: redis://custodia-redis.custodia-prod.svc:6379/0
+
+objectStore:
+  endpoint: http://minio.storage.svc:9000
+  bucket: custodia
+
+ai:
+  defaultProvider: ollama     # local-first: documents stay in-cluster
+  ollamaBaseUrl: http://ollama.custodia-prod.svc:11434
+  embedModel: "nomic-embed-text"
+  # No GPU-schedulable node in the cluster today (no nvidia.com/gpu advertised).
+  # CPU mode uses a smaller model so background extraction stays tolerable.
+  gpu:
+    enabled: false            # flip to true after adding a passthrough GPU node
+    nodeSelector: {}          # e.g. { nvidia.com/gpu.present: "true" }
+    tolerations: []
+    resources: {}             # e.g. { limits: { nvidia.com/gpu: 1 } }
+  extractModel: "qwen2.5:7b-instruct"     # CPU-friendly default
+  extractModelGpu: "qwen2.5:14b-instruct" # used when ai.gpu.enabled=true
+
+externalSecrets:
+  enabled: true
+  store: vault-backend        # your ClusterSecretStore
+
+monitoring:
+  serviceMonitor: true        # scraped by your Prometheus
+
+ingress:
+  # Matches the cluster's standard pattern (nginx + cert-manager), NOT Cloudflare
+  # Tunnel (there is none). LB IP is private -> internal-only (LAN/VPN/Tailscale).
+  enabled: true
+  className: nginx            # or "tailscale" for tailnet-only exposure
+  host: custodia.giddyland.net
+  clusterIssuer: letsencrypt-prod
+  tlsSecret: custodia-tls

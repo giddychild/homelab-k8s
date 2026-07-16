@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custodia-api
+  namespace: {{ .Values.namespace }}
+  labels: { app: custodia, component: api }
+spec:
+  replicas: {{ .Values.api.replicas.min }}
+  selector:
+    matchLabels: { app: custodia, component: api }
+  template:
+    metadata:
+      labels: { app: custodia, component: api }
+    spec:
+      {{- if .Values.image.pullSecret }}
+      imagePullSecrets: [{ name: {{ .Values.image.pullSecret }} }]
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: api
+          image: "{{ .Values.image.registry }}/{{ .Values.image.api }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{ containerPort: 8000 }]
+          envFrom:
+            - secretRef: { name: custodia-secrets }
+          env:
+            - { name: CUSTODIA_REDIS_URL,        value: "{{ .Values.redis.url }}" }
+            - { name: CUSTODIA_S3_ENDPOINT,      value: "{{ .Values.objectStore.endpoint }}" }
+            - { name: CUSTODIA_S3_BUCKET,        value: "{{ .Values.objectStore.bucket }}" }
+            - { name: CUSTODIA_AI_DEFAULT_PROVIDER, value: "{{ .Values.ai.defaultProvider }}" }
+            - { name: CUSTODIA_OLLAMA_BASE_URL,  value: "{{ .Values.ai.ollamaBaseUrl }}" }
+            - { name: CUSTODIA_OLLAMA_EXTRACT_MODEL, value: "{{ .Values.ai.extractModel }}" }
+            - { name: CUSTODIA_OLLAMA_EMBED_MODEL,   value: "{{ .Values.ai.embedModel }}" }
+          readinessProbe:
+            httpGet: { path: /readyz, port: 8000 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 10
+          resources: {{ toYaml .Values.api.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: custodia-api
+  namespace: {{ .Values.namespace }}
+spec:
+  selector: { app: custodia, component: api }
+  ports: [{ port: 80, targetPort: 8000 }]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: custodia-api
+  namespace: {{ .Values.namespace }}
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: custodia-api }
+  minReplicas: {{ .Values.api.replicas.min }}
+  maxReplicas: {{ .Values.api.replicas.max }}
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+{{- if .Values.monitoring.serviceMonitor }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: custodia-api
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    matchLabels: { app: custodia, component: api }
+  endpoints: [{ port: http, path: /metrics }]
+{{- end }}

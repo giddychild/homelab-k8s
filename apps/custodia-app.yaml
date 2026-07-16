@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: custodia
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  # Matches the cluster's real GitOps pattern: single monorepo, `default`
+  # project (same as careledger / deuce / learnquest). Copy the chart at
+  # deploy/helm/custodia into the homelab-k8s repo under `path` below, then
+  # commit this Application manifest there too.
+  project: default
+  source:
+    repoURL: https://github.com/giddychild/homelab-k8s.git
+    targetRevision: main
+    path: apps/custodia          # <- where you place the chart in the monorepo
+    helm:
+      valueFiles: [values.yaml]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: custodia-prod
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
