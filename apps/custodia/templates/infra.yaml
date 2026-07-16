@@ -18,6 +18,7 @@ spec:
         - CREATE EXTENSION IF NOT EXISTS citext;
         - CREATE EXTENSION IF NOT EXISTS btree_gist;
         - CREATE EXTENSION IF NOT EXISTS vector;
+  {{- if .Values.database.backup }}
   backup:
     barmanObjectStore:
       destinationPath: "s3://custodia-backups/pg"
@@ -26,6 +27,7 @@ spec:
         accessKeyId:     { name: custodia-secrets, key: S3_ACCESS_KEY }
         secretAccessKey: { name: custodia-secrets, key: S3_SECRET_KEY }
     retentionPolicy: "30d"
+  {{- end }}
 {{- end }}
 {{- if .Values.externalSecrets.enabled }}
 ---
@@ -39,7 +41,7 @@ spec:
   secretStoreRef: { name: {{ .Values.externalSecrets.store }}, kind: ClusterSecretStore }
   target: { name: custodia-secrets }
   data:
-    - { secretKey: CUSTODIA_DATABASE_URL, remoteRef: { key: custodia, property: database_url } }
+    # DB URL comes from the CNPG-generated secret, not Vault.
     - { secretKey: S3_ACCESS_KEY,         remoteRef: { key: custodia, property: s3_access_key } }
     - { secretKey: S3_SECRET_KEY,         remoteRef: { key: custodia, property: s3_secret_key } }
     - { secretKey: CUSTODIA_ANTHROPIC_API_KEY, remoteRef: { key: custodia, property: anthropic_api_key } }

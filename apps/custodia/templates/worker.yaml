@@ -22,6 +22,9 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           envFrom: [{ secretRef: { name: custodia-secrets } }]
           env:
+            - name: CUSTODIA_DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.database.cluster }}-app, key: uri }
             - { name: CUSTODIA_REDIS_URL, value: "{{ .Values.redis.url }}" }
           resources:
             requests: { cpu: 100m, memory: 256Mi }

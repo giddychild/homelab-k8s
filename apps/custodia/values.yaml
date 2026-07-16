@@ -7,7 +7,7 @@ image:
   web: custodia-web
   tag: "0.1.0"
   pullPolicy: IfNotPresent
-  pullSecret: ""   # name of a docker-registry secret if the images are private
+  pullSecret: ghcr-creds   # name of a docker-registry secret if the images are private
 
 api:
   replicas: { min: 2, max: 8 }
@@ -24,13 +24,14 @@ web:
 
 # Reuse the platform: reference existing components, do not recreate them.
 database:
-  # Set create=true to provision a dedicated CloudNativePG cluster; otherwise
-  # point at a database in the shared instance via existingSecret.
+  # Provisions a dedicated CloudNativePG cluster. The API/worker read the DB URL
+  # straight from CNPG's generated `<cluster>-app` secret (key `uri`), so there
+  # is no DB password to manage by hand.
   create: true
   cluster: custodia-db
   instances: 2
   storageSize: 20Gi
-  existingSecret: ""          # k8s secret with the app connection string
+  backup: false              # set true after creating the s3://custodia-backups target
 
 redis:
   url: redis://custodia-redis.custodia-prod.svc:6379/0
@@ -54,8 +55,11 @@ ai:
   extractModelGpu: "qwen2.5:14b-instruct" # used when ai.gpu.enabled=true
 
 externalSecrets:
-  enabled: true
-  store: vault-backend        # your ClusterSecretStore
+  # Default: create the `custodia-secrets` k8s secret directly with kubectl
+  # (RUNBOOK step 3) — no Vault needed for a first deploy. Set enabled=true to
+  # source it from Vault via External-Secrets instead.
+  enabled: false
+  store: vault-backend        # your ClusterSecretStore (when enabled)
 
 monitoring:
   serviceMonitor: true        # scraped by your Prometheus

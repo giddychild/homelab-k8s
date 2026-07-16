@@ -19,6 +19,16 @@ spec:
         runAsNonRoot: true
         runAsUser: 10001
         fsGroup: 10001
+      initContainers:
+        # Runs DB migrations once the CNPG-generated secret + service exist.
+        # Serialized across replicas via a pg advisory lock (see app.migrate).
+        - name: migrate
+          image: "{{ .Values.image.registry }}/{{ .Values.image.api }}:{{ .Values.image.tag }}"
+          command: ["python", "-m", "app.migrate"]
+          env:
+            - name: CUSTODIA_DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.database.cluster }}-app, key: uri }
       containers:
         - name: api
           image: "{{ .Values.image.registry }}/{{ .Values.image.api }}:{{ .Values.image.tag }}"
@@ -27,6 +37,9 @@ spec:
           envFrom:
             - secretRef: { name: custodia-secrets }
           env:
+            - name: CUSTODIA_DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.database.cluster }}-app, key: uri }
             - { name: CUSTODIA_REDIS_URL,        value: "{{ .Values.redis.url }}" }
             - { name: CUSTODIA_S3_ENDPOINT,      value: "{{ .Values.objectStore.endpoint }}" }
             - { name: CUSTODIA_S3_BUCKET,        value: "{{ .Values.objectStore.bucket }}" }
