@@ -52,7 +52,12 @@ spec:
             requests: { cpu: 100m, memory: 256Mi }
             limits:   { cpu: "2", memory: 1Gi }
   volumeClaimTemplates:
-    - metadata: { name: data }
+    # apiVersion/kind are set explicitly to match what the API server defaults
+    # onto the live object — otherwise ArgoCD reports perpetual OutOfSync
+    # (volumeClaimTemplates is immutable, so it can never reconcile the diff).
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata: { name: data }
       spec:
         accessModes: ["ReadWriteOnce"]
         {{- if .Values.database.storageClass }}
