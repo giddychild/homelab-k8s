@@ -62,6 +62,14 @@ externalSecrets:
   enabled: false
   store: vault-backend        # your ClusterSecretStore (when enabled)
 
+cloudflared:
+  # Runs the connector for the `custodia` Cloudflare Tunnel in-cluster (this is
+  # what makes the tunnel Active). Requires a `custodia-tunnel-token` secret
+  # created out-of-band with the token from the Cloudflare dashboard.
+  enabled: true
+  replicas: 2
+  image: cloudflare/cloudflared:latest
+
 networkPolicy:
   enabled: false              # opt-in; enable after verifying connectivity
 

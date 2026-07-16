@@ -1,0 +1,41 @@
+{{- if .Values.cloudflared.enabled }}
+# Cloudflare Tunnel connector for the `custodia` tunnel. This is what makes the
+# tunnel Active (otherwise: Error 1033). It pulls its route config (managed in
+# the Cloudflare dashboard: custodia.giddyland.net -> ingress-nginx-controller
+# .ingress-nginx.svc.cluster.local:443) using the tunnel token, and runs inside
+# the cluster so it can reach the in-cluster ingress service.
+#
+# The token is provided out-of-band (never in git):
+#   kubectl -n {{ .Values.namespace }} create secret generic custodia-tunnel-token \
+#     --from-literal=token='<TUNNEL_TOKEN from Cloudflare dashboard>'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custodia-cloudflared
+  namespace: {{ .Values.namespace }}
+  labels: { app: custodia, component: cloudflared }
+spec:
+  replicas: {{ .Values.cloudflared.replicas }}
+  selector:
+    matchLabels: { app: custodia, component: cloudflared }
+  template:
+    metadata:
+      labels: { app: custodia, component: cloudflared }
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 65532 }
+      containers:
+        - name: cloudflared
+          image: {{ .Values.cloudflared.image }}
+          args: ["tunnel", "--no-autoupdate", "--metrics", "0.0.0.0:2000", "run"]
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef: { name: custodia-tunnel-token, key: token }
+          livenessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits:   { cpu: 250m, memory: 128Mi }
+{{- end }}
