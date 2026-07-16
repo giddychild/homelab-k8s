@@ -1,34 +1,6 @@
-{{- if .Values.database.create }}
-# Dedicated PostgreSQL via CloudNativePG (same operator your platform already runs).
-apiVersion: postgresql.cnpg.io/v1
-kind: Cluster
-metadata:
-  name: {{ .Values.database.cluster }}
-  namespace: {{ .Values.namespace }}
-spec:
-  instances: {{ .Values.database.instances }}
-  storage:
-    size: {{ .Values.database.storageSize }}
-  bootstrap:
-    initdb:
-      database: custodia
-      owner: custodia_app
-      postInitSQL:
-        - CREATE EXTENSION IF NOT EXISTS pgcrypto;
-        - CREATE EXTENSION IF NOT EXISTS citext;
-        - CREATE EXTENSION IF NOT EXISTS btree_gist;
-        - CREATE EXTENSION IF NOT EXISTS vector;
-  {{- if .Values.database.backup }}
-  backup:
-    barmanObjectStore:
-      destinationPath: "s3://custodia-backups/pg"
-      endpointURL: "{{ .Values.objectStore.endpoint }}"
-      s3Credentials:
-        accessKeyId:     { name: custodia-secrets, key: S3_ACCESS_KEY }
-        secretAccessKey: { name: custodia-secrets, key: S3_SECRET_KEY }
-    retentionPolicy: "30d"
-  {{- end }}
-{{- end }}
+# Postgres is a self-contained StatefulSet (see postgres.yaml) — this cluster
+# has no CloudNativePG operator. Extensions (pgvector, btree_gist, citext,
+# pgcrypto) are created by migration 0001, which runs as the app_user superuser.
 {{- if .Values.externalSecrets.enabled }}
 ---
 apiVersion: external-secrets.io/v1beta1
@@ -46,9 +18,10 @@ spec:
     - { secretKey: S3_SECRET_KEY,         remoteRef: { key: custodia, property: s3_secret_key } }
     - { secretKey: CUSTODIA_ANTHROPIC_API_KEY, remoteRef: { key: custodia, property: anthropic_api_key } }
 {{- end }}
+{{- if .Values.networkPolicy.enabled }}
 ---
-# Default-deny + explicit egress. Cilium enforces the actual policy; this is the
-# portable NetworkPolicy shape.
+# Opt-in default-deny for the API pods. Off by default so it can't silently
+# block traffic on first deploy; enable once verified working.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -59,8 +32,9 @@ spec:
     matchLabels: { app: custodia, component: api }
   policyTypes: [Ingress, Egress]
   ingress:
-    - {}   # from ingress/tunnel; tighten to the tunnel namespace in prod
+    - {}
   egress:
-    - to: [{ podSelector: { matchLabels: { cnpg.io/cluster: {{ .Values.database.cluster }} } } }]
+    - to: [{ podSelector: { matchLabels: { app: custodia, component: db } } }]   # Postgres
     - to: [{ podSelector: { matchLabels: { app: ollama } } }]
-    - ports: [{ port: 6379 }, { port: 9000 }, { port: 53, protocol: UDP }]
+    - ports: [{ port: 5432 }, { port: 6379 }, { port: 9000 }, { port: 53, protocol: UDP }]
+{{- end }}

@@ -1,0 +1,75 @@
+{{- if .Values.database.create }}
+# Self-contained Postgres (pgvector image = pgvector + btree_gist available).
+# No operator dependency (this cluster has no CloudNativePG). The app/worker read
+# the connection URL from the `custodia-db-app` secret's `uri` key, matching the
+# secretKeyRef in api.yaml/worker.yaml ({{ .Values.database.cluster }}-app).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.database.cluster }}-app
+  namespace: {{ .Values.namespace }}
+type: Opaque
+stringData:
+  username: custodia_app
+  password: {{ .Values.database.password | quote }}
+  dbname: custodia
+  host: {{ .Values.database.cluster }}-rw.{{ .Values.namespace }}.svc
+  port: "5432"
+  uri: "postgresql://custodia_app:{{ .Values.database.password }}@{{ .Values.database.cluster }}-rw.{{ .Values.namespace }}.svc:5432/custodia"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.database.cluster }}-rw
+  namespace: {{ .Values.namespace }}
+  labels: { app: custodia, component: db }
+spec:
+  clusterIP: None            # headless: governs the StatefulSet + resolves to the pod
+  selector: { app: custodia, component: db }
+  ports: [{ name: postgres, port: 5432, targetPort: 5432 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.database.cluster }}
+  namespace: {{ .Values.namespace }}
+  labels: { app: custodia, component: db }
+spec:
+  serviceName: {{ .Values.database.cluster }}-rw
+  replicas: 1
+  selector:
+    matchLabels: { app: custodia, component: db }
+  template:
+    metadata:
+      labels: { app: custodia, component: db }
+    spec:
+      securityContext: { fsGroup: 999 }
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:pg16
+          ports: [{ containerPort: 5432 }]
+          env:
+            - { name: POSTGRES_USER, value: custodia_app }
+            - { name: POSTGRES_DB,   value: custodia }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.database.cluster }}-app, key: password }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "custodia_app", "-d", "custodia"] }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: "2", memory: 1Gi }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.database.storageClass }}
+        storageClassName: {{ .Values.database.storageClass }}
+        {{- end }}
+        resources: { requests: { storage: {{ .Values.database.storageSize }} } }
+{{- end }}

@@ -7,7 +7,7 @@ image:
   web: custodia-web
   tag: "0.1.0"
   pullPolicy: IfNotPresent
-  pullSecret: ghcr-creds   # name of a docker-registry secret if the images are private
+  pullSecret: ""   # name of a docker-registry secret if the images are private
 
 api:
   replicas: { min: 2, max: 8 }
@@ -24,14 +24,15 @@ web:
 
 # Reuse the platform: reference existing components, do not recreate them.
 database:
-  # Provisions a dedicated CloudNativePG cluster. The API/worker read the DB URL
-  # straight from CNPG's generated `<cluster>-app` secret (key `uri`), so there
-  # is no DB password to manage by hand.
+  # Self-contained Postgres StatefulSet (pgvector image). API/worker read the URL
+  # from the chart-created `<cluster>-app` secret (key `uri`).
   create: true
-  cluster: custodia-db
-  instances: 2
+  cluster: custodia-db        # -> secret custodia-db-app, service custodia-db-rw
   storageSize: 20Gi
-  backup: false              # set true after creating the s3://custodia-backups target
+  storageClass: ""            # "" = cluster default (longhorn)
+  # Internal DB (ClusterIP/headless, never exposed). Override in prod, e.g.
+  # --set database.password=... or pre-create the custodia-db-app secret.
+  password: "custodia-homelab-db"
 
 redis:
   url: redis://custodia-redis.custodia-prod.svc:6379/0
@@ -60,6 +61,9 @@ externalSecrets:
   # source it from Vault via External-Secrets instead.
   enabled: false
   store: vault-backend        # your ClusterSecretStore (when enabled)
+
+networkPolicy:
+  enabled: false              # opt-in; enable after verifying connectivity
 
 monitoring:
   serviceMonitor: true        # scraped by your Prometheus
