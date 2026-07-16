@@ -1,22 +1,9 @@
 {{- if .Values.database.create }}
 # Self-contained Postgres (pgvector image = pgvector + btree_gist available).
-# No operator dependency (this cluster has no CloudNativePG). The app/worker read
-# the connection URL from the `custodia-db-app` secret's `uri` key, matching the
-# secretKeyRef in api.yaml/worker.yaml ({{ .Values.database.cluster }}-app).
-apiVersion: v1
-kind: Secret
-metadata:
-  name: {{ .Values.database.cluster }}-app
-  namespace: {{ .Values.namespace }}
-type: Opaque
-stringData:
-  username: custodia_app
-  password: {{ .Values.database.password | quote }}
-  dbname: custodia
-  host: {{ .Values.database.cluster }}-rw.{{ .Values.namespace }}.svc
-  port: "5432"
-  uri: "postgresql://custodia_app:{{ .Values.database.password }}@{{ .Values.database.cluster }}-rw.{{ .Values.namespace }}.svc:5432/custodia"
----
+# No operator dependency (this cluster has no CloudNativePG). The `custodia-db-app`
+# secret is created out-of-band (kubectl) with a generated password — never in
+# git. StatefulSet reads key `password`; api/worker read key `uri` (see api.yaml/
+# worker.yaml secretKeyRef {{ .Values.database.cluster }}-app).
 apiVersion: v1
 kind: Service
 metadata:

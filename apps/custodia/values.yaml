@@ -24,15 +24,14 @@ web:
 
 # Reuse the platform: reference existing components, do not recreate them.
 database:
-  # Self-contained Postgres StatefulSet (pgvector image). API/worker read the URL
-  # from the chart-created `<cluster>-app` secret (key `uri`).
+  # Self-contained Postgres StatefulSet (pgvector image). The `custodia-db-app`
+  # secret is created OUT-OF-BAND with kubectl (RUNBOOK step 4b) — never in git —
+  # and holds a generated password. StatefulSet reads key `password`; app/worker
+  # read key `uri`.
   create: true
   cluster: custodia-db        # -> secret custodia-db-app, service custodia-db-rw
   storageSize: 20Gi
   storageClass: ""            # "" = cluster default (longhorn)
-  # Internal DB (ClusterIP/headless, never exposed). Override in prod, e.g.
-  # --set database.password=... or pre-create the custodia-db-app secret.
-  password: "custodia-homelab-db"
 
 redis:
   url: redis://custodia-redis.custodia-prod.svc:6379/0
