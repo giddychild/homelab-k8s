@@ -34,6 +34,7 @@ database:
   storageClass: ""            # "" = cluster default (longhorn)
 
 redis:
+  deploy: true              # deploy an in-cluster Redis (set false to use an external one)
   url: redis://custodia-redis.custodia-prod.svc:6379/0
 
 objectStore:

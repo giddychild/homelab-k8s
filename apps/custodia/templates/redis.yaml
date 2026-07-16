@@ -1,0 +1,39 @@
+{{- if .Values.redis.deploy }}
+# In-cluster Redis for the Arq job queue + SSE fan-out. The queue is transient
+# (jobs re-enqueue on rule changes), so no persistence is needed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custodia-redis
+  namespace: {{ .Values.namespace }}
+  labels: { app: custodia, component: redis }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: custodia, component: redis }
+  template:
+    metadata:
+      labels: { app: custodia, component: redis }
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 999 }
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["--save", "", "--appendonly", "no"]   # in-memory only
+          ports: [{ containerPort: 6379 }]
+          readinessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            initialDelaySeconds: 3
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits:   { cpu: 250m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: custodia-redis
+  namespace: {{ .Values.namespace }}
+spec:
+  selector: { app: custodia, component: redis }
+  ports: [{ port: 6379, targetPort: 6379 }]
+{{- end }}
