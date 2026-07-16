@@ -5,7 +5,7 @@ image:
   registry: ghcr.io/giddychild
   api: custodia-api
   web: custodia-web
-  tag: "0.4.0"
+  tag: "0.4.1"
   pullPolicy: IfNotPresent
   pullSecret: ghcr-creds   # docker-registry secret for private GHCR images
 
@@ -76,6 +76,12 @@ cloudflared:
   enabled: true
   replicas: 2
   image: cloudflare/cloudflared:latest
+
+backup:
+  enabled: true               # nightly pg_dump -> Longhorn PVC (last N days)
+  schedule: "0 3 * * *"       # 03:00 daily
+  retentionDays: 7
+  storageSize: 10Gi
 
 networkPolicy:
   enabled: false              # opt-in; enable after verifying connectivity
