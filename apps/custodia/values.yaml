@@ -7,7 +7,7 @@ image:
   web: custodia-web
   tag: "0.1.0"
   pullPolicy: IfNotPresent
-  pullSecret: ""   # name of a docker-registry secret if the images are private
+  pullSecret: ghcr-creds   # docker-registry secret for private GHCR images
 
 api:
   replicas: { min: 2, max: 8 }
