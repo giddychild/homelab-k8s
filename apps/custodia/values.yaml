@@ -5,7 +5,7 @@ image:
   registry: ghcr.io/giddychild
   api: custodia-api
   web: custodia-web
-  tag: "0.4.3"
+  tag: "0.5.0"
   pullPolicy: IfNotPresent
   pullSecret: ghcr-creds   # docker-registry secret for private GHCR images
 
@@ -52,6 +52,10 @@ ai:
   defaultProvider: ollama     # local-first: documents stay in-cluster
   ollamaBaseUrl: http://custodia-ollama.custodia-prod.svc:11434
   embedModel: "nomic-embed-text"
+  # Per-case opt-in: a case can switch to hosted Claude for higher-accuracy
+  # extraction. Requires CUSTODIA_ANTHROPIC_API_KEY in the custodia-secrets
+  # secret (set out-of-band; never in git). Document text is sent to Anthropic.
+  anthropicModel: "claude-opus-4-8"
   # No GPU-schedulable node in the cluster today (no nvidia.com/gpu advertised).
   # CPU mode uses a smaller model so background extraction stays tolerable.
   gpu:

@@ -28,6 +28,7 @@ spec:
             - { name: CUSTODIA_REDIS_URL, value: "{{ .Values.redis.url }}" }
             - { name: CUSTODIA_OLLAMA_BASE_URL, value: "{{ .Values.ai.ollamaBaseUrl }}" }
             - { name: CUSTODIA_OLLAMA_EXTRACT_MODEL, value: "{{ .Values.ai.extractModel }}" }
+            - { name: CUSTODIA_ANTHROPIC_MODEL, value: "{{ .Values.ai.anthropicModel }}" }
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits:   { cpu: "1", memory: 512Mi }
