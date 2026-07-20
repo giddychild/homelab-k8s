@@ -11,6 +11,10 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer }}
     nginx.ingress.kubernetes.io/proxy-body-size: "32m"   # document uploads (P2)
+    # AI interpretation (Ollama/Claude reading an order or calendar) can run well
+    # past the 60s default — allow up to 5 min so it doesn't 504 mid-call.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   rules:
