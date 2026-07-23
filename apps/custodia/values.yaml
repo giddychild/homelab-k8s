@@ -5,7 +5,7 @@ image:
   registry: ghcr.io/giddychild
   api: custodia-api
   web: custodia-web
-  tag: "0.9.21"
+  tag: "0.9.22"
   pullPolicy: IfNotPresent
   pullSecret: ghcr-creds   # docker-registry secret for private GHCR images
 
