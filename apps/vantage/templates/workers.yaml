@@ -1,0 +1,52 @@
+{{- range $role, $cfg := .Values.workers }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vantage.fullname" $ }}-worker-{{ $role }}
+  labels: {{- include "vantage.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: worker
+    vantage.io/queue: {{ $role }}
+spec:
+  replicas: {{ $cfg.replicas }}
+  selector:
+    matchLabels: {{- include "vantage.selectorLabels" $ | nindent 6 }}
+      vantage.io/queue: {{ $role }}
+  template:
+    metadata:
+      labels: {{- include "vantage.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: worker
+        vantage.io/queue: {{ $role }}
+    spec:
+      {{- with $.Values.image.pullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext: {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: worker
+          image: "{{ $.Values.image.registry }}/vantage-worker:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          securityContext: {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          envFrom:
+            - configMapRef: { name: {{ include "vantage.fullname" $ }}-config }
+            - secretRef:    { name: vantage-secrets }
+          env:
+            - name: QUEUE
+              value: {{ $role | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: {{ $.Values.postgres.existingSecret }}, key: uri }
+            - name: REDIS_URL
+              value: "redis://{{ include "vantage.fullname" $ }}-redis:6379/0"
+          resources: {{- toYaml $cfg.resources | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            # Playwright needs a writable browser profile dir under a read-only rootfs
+            - { name: browser, mountPath: /home/vantage/.cache }
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 2Gi }
+        - name: browser
+          emptyDir: { sizeLimit: 1Gi }
+{{- end }}

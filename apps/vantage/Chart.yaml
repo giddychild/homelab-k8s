@@ -1,0 +1,12 @@
+apiVersion: v2
+name: vantage
+description: AI job-search agent — discovery, scoring, tailoring, assisted and API submission
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [jobs, ai, automation]
+home: https://vantage.giddyland.net
+sources:
+  - https://github.com/giddychild/vantage
+maintainers:
+  - name: giddychild

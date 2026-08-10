@@ -1,0 +1,38 @@
+# ArgoCD Application for Vantage.
+#
+# Mirrors the cluster's real GitOps pattern (single monorepo, `default`
+# project) — the same shape as apps/custodia-app.yaml.
+#
+# Copy this to homelab-k8s/apps/vantage-app.yaml and the chart to
+# homelab-k8s/apps/vantage/, then commit. `make chart` does the chart copy.
+#
+# PREREQUISITES — create these in the cluster BEFORE the first sync, or pods
+# will CrashLoop / ExternalSecret will error:
+#   1. namespace           vantage-prod
+#   2. imagePullSecret     ghcr-creds       (images are private)
+#   3. db secret           vantage-db-app   keys: password, uri  (OUT OF BAND —
+#                          homelab-k8s is a PUBLIC repo, never commit this)
+#   4. Vault keys          secret/vantage/{app,blob,notify,sources}
+#                          ESO errors on a missing key and the Secret is never
+#                          created, so the pods never start. Same footgun as
+#                          LearnQuest's cf_tunnel_token.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vantage
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/giddychild/homelab-k8s.git
+    targetRevision: main
+    path: apps/vantage
+    helm:
+      valueFiles: [values.yaml]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vantage-prod
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]

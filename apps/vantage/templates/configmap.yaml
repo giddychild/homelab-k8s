@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vantage.fullname" . }}-config
+  labels: {{- include "vantage.labels" . | nindent 4 }}
+data:
+  VANTAGE_ENV: "production"
+  PUBLIC_BASE_URL: "https://{{ .Values.ingress.host }}"
+
+  # object store
+  BLOB_ENDPOINT: {{ .Values.objectStore.endpoint | quote }}
+  BLOB_BUCKET:   {{ .Values.objectStore.bucket | quote }}
+  BLOB_REGION:   {{ .Values.objectStore.region | quote }}
+
+  # ai
+  AI_LOCAL_BASE_URL:     {{ .Values.ai.local.baseUrl | quote }}
+  AI_EXTRACT_MODEL:      {{ .Values.ai.local.extractModel | quote }}
+  AI_EMBED_MODEL:        {{ .Values.ai.local.embedModel | quote }}
+  AI_EMBED_DIM:          {{ .Values.ai.local.embedDim | quote }}
+  AI_FRONTIER_ENABLED:   {{ .Values.ai.frontier.enabled | quote }}
+  AI_FRONTIER_PROVIDER:  {{ .Values.ai.frontier.provider | quote }}
+  AI_FRONTIER_MODEL:     {{ .Values.ai.frontier.model | quote }}
+  AI_MONTHLY_BUDGET_USD: {{ .Values.ai.frontier.monthlyBudgetUSD | quote }}
+  AI_REDACTION_PROXY:    {{ .Values.ai.redactionProxy | quote }}
+
+  # auth
+  OIDC_ENABLED:   {{ .Values.auth.oidc.enabled | quote }}
+  OIDC_ISSUER:    {{ .Values.auth.oidc.issuer | quote }}
+  OIDC_CLIENT_ID: {{ .Values.auth.oidc.clientId | quote }}
+
+  # policy defaults (DB `settings` overrides these once a user exists)
+  SHORTLIST_FLOOR:            {{ .Values.settings.shortlistFloor | quote }}
+  DAILY_PREPARE_CAP:          {{ .Values.settings.dailyPrepareCap | quote }}
+  PER_COMPANY_COOLDOWN_DAYS:  {{ .Values.settings.perCompanyCooldownDays | quote }}
+  PACKAGE_EXPIRY_HOURS:       {{ .Values.settings.packageExpiryHours | quote }}
+  GHOST_AFTER_DAYS:           {{ .Values.settings.ghostAfterDays | quote }}
+  CURRENCY:                   {{ .Values.settings.currency | quote }}
+  TAXONOMY_SOURCE:            {{ .Values.taxonomy.source | quote }}
+  TAXONOMY_SEED_VERSION:      {{ .Values.taxonomy.seedVersion | quote }}
+
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo.monitoring.svc.cluster.local:4317"
+  OTEL_SERVICE_NAME: "vantage"

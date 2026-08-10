@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vantage.fullname" . }}-web
+  labels: {{- include "vantage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  replicas: {{ .Values.web.replicas }}
+  selector:
+    matchLabels: {{- include "vantage.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: web
+  template:
+    metadata:
+      labels: {{- include "vantage.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: web
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: web
+          image: "{{ .Values.image.registry }}/vantage-web:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports: [{ name: http, containerPort: 3000 }]
+          env:
+            # Consumed at RUNTIME by app/api/[...path]/route.ts.
+            # Do NOT move this to next.config rewrites() — that bakes at build time.
+            - name: API_INTERNAL_URL
+              value: "http://{{ include "vantage.fullname" . }}-api:8000"
+            - name: NEXT_PUBLIC_BASE_URL
+              value: "https://{{ .Values.ingress.host }}"
+          readinessProbe:
+            httpGet: { path: /api/healthz, port: http }
+            periodSeconds: 10
+          resources: {{- toYaml .Values.web.resources | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: cache, mountPath: /app/.next/cache }
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 128Mi }
+        - name: cache
+          emptyDir: { sizeLimit: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "vantage.fullname" . }}-web
+spec:
+  selector: {{- include "vantage.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+  ports: [{ name: http, port: 3000, targetPort: http }]
+
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "vantage.fullname" . }}
+  annotations: {{- toYaml .Values.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts: [{{ .Values.ingress.host | quote }}]
+      secretName: {{ include "vantage.fullname" . }}-tls
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          # /api goes STRAIGHT to the API service. The web pod's runtime proxy
+          # also works, but routing here keeps SSE and uploads off the Node hop.
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "vantage.fullname" . }}-api
+                port: { number: 8000 }
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "vantage.fullname" . }}-web
+                port: { number: 3000 }
+{{- end }}
