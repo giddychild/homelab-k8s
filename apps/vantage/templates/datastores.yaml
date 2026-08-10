@@ -17,10 +17,21 @@ spec:
         app.kubernetes.io/component: db
     spec:
       automountServiceAccountToken: false
-      securityContext: { runAsNonRoot: true, runAsUser: 999, fsGroup: 999 }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: postgres
           image: {{ .Values.postgres.image | quote }}
+          # Satisfies restricted PSS. readOnlyRootFilesystem is deliberately
+          # left off: Postgres writes its socket to /var/run/postgresql, and
+          # restricted does not require a read-only root.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
           ports: [{ name: pg, containerPort: 5432 }]
           env:
             - name: POSTGRES_DB
