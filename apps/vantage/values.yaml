@@ -86,9 +86,15 @@ ai:
 ingress:
   enabled: true
   className: nginx
-  # Single hostname, no *.apps subdomain. NOTE: the wildcard *.apps.giddyland.net
-  # points at the LB, but *.giddyland.net resolves to the gateway (.1), so this
-  # host needs its OWN Cloudflare A record -> 192.168.216.230. Same as Custodia.
+  # Single hostname, matching every other app on this cluster.
+  #
+  # Do NOT create an A record for this host. Cloudflare creates a Type=Tunnel
+  # record automatically when the tunnel route is added — that is how custodia,
+  # money, learn, care, deuce and recall all work.
+  #
+  # The cert is issued by cert-manager over ACME **DNS-01** (Cloudflare API
+  # token), not HTTP-01, so it works fine behind the orange cloud and needs no
+  # inbound reachability.
   host: vantage.giddyland.net
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
