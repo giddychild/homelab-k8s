@@ -39,6 +39,9 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef: { name: {{ .Values.postgres.existingSecret }}, key: uri }
+            - name: DATABASE_ADMIN_URL
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.postgres.existingSecret }}, key: admin_uri }
           volumeMounts:
             - { name: tmp, mountPath: /tmp }
 
@@ -56,6 +59,9 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef: { name: {{ .Values.postgres.existingSecret }}, key: uri }
+            - name: DATABASE_ADMIN_URL
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.postgres.existingSecret }}, key: admin_uri }
             - name: REDIS_URL
               value: "redis://{{ include "vantage.fullname" . }}-redis:6379/0"
             {{- range $k, $v := .Values.api.env }}
