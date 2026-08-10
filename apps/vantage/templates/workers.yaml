@@ -19,7 +19,10 @@ spec:
         vantage.io/queue: {{ $role }}
     spec:
       {{- with $.Values.image.pullSecrets }}
-      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ . }}
+        {{- end }}
       {{- end }}
       automountServiceAccountToken: false
       securityContext: {{- toYaml $.Values.podSecurityContext | nindent 8 }}
