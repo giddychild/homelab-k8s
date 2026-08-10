@@ -111,7 +111,7 @@ ingress:
 # Origin-Server-Name + Host header = vantage.giddyland.net.
 cloudflare:
   tunnel:
-    enabled: false                    # flip on after Cloudflare Access is configured
+    enabled: true                     # token in the vantage-tunnel-token Secret (kubectl, never git)
     image: cloudflare/cloudflared:2026.5.2
     replicas: 2
     tokenSecret: vantage-tunnel-token
