@@ -1,4 +1,25 @@
 {{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vantage.fullname" . }}-db-init
+  labels: {{- include "vantage.labels" . | nindent 4 }}
+data:
+  # Runs once, on an empty data directory, as the bootstrap superuser.
+  # Creates the roles the application actually connects as — neither of which
+  # is a superuser, so RLS and the immutability REVOKEs are real.
+  00-roles.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+        CREATE ROLE vantage_app LOGIN PASSWORD '${APP_PASSWORD}'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+        CREATE ROLE vantage_ops LOGIN PASSWORD '${APP_PASSWORD}'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+    EOSQL
+---
+{{- end }}
+{{- if .Values.postgres.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -34,11 +55,19 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           ports: [{ name: pg, containerPort: 5432 }]
           env:
+            # The bootstrap user OWNS the schema and is a superuser. Postgres
+            # refuses to remove SUPERUSER from it, so the application must never
+            # be the bootstrap user — otherwise it carries BYPASSRLS and every
+            # row-level-security policy in this schema is silently inert.
+            # `vantage_app` is created as a plain role by the initdb script below.
             - name: POSTGRES_DB
               value: vantage
             - name: POSTGRES_USER
-              value: vantage_app
+              value: vantage_owner
             - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.postgres.existingSecret }}, key: owner_password }
+            - name: APP_PASSWORD
               valueFrom:
                 secretKeyRef: { name: {{ .Values.postgres.existingSecret }}, key: password }
             - name: PGDATA
@@ -56,11 +85,17 @@ spec:
             - -c
             - random_page_cost=4.0
           readinessProbe:
-            exec: { command: ["pg_isready", "-U", "vantage_app", "-d", "vantage"] }
+            exec: { command: ["pg_isready", "-U", "vantage_owner", "-d", "vantage"] }
             periodSeconds: 10
           resources: {{- toYaml .Values.postgres.resources | nindent 12 }}
           volumeMounts:
             - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: initdb, mountPath: /docker-entrypoint-initdb.d, readOnly: true }
+      volumes:
+        - name: initdb
+          configMap:
+            name: {{ include "vantage.fullname" . }}-db-init
+            defaultMode: 0555
   volumeClaimTemplates:
     - metadata: { name: data }
       spec:
