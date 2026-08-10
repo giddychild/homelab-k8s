@@ -36,3 +36,21 @@ spec:
   syncPolicy:
     automated: { prune: true, selfHeal: true }
     syncOptions: [CreateNamespace=true, ServerSideApply=true]
+
+  # The API server defaults these onto every StatefulSet volumeClaimTemplate.
+  # The chart cannot set them (they are read-only or meaningless in a template),
+  # so ArgoCD reports a permanent OutOfSync it can never resolve — and
+  # volumeClaimTemplates are immutable, so it could not act on it anyway.
+  #
+  # Deliberately narrow: a real change to `storage` or `storageClassName` still
+  # shows as OutOfSync, which is what you want, because that one needs the
+  # volume recreating by hand.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jqPathExpressions:
+        - '.spec.volumeClaimTemplates[]?.apiVersion'
+        - '.spec.volumeClaimTemplates[]?.kind'
+        - '.spec.volumeClaimTemplates[]?.status'
+        - '.spec.volumeClaimTemplates[]?.metadata.creationTimestamp'
+        - '.spec.volumeClaimTemplates[]?.spec.volumeMode'
