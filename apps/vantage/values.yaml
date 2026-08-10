@@ -1,0 +1,191 @@
+# Vantage — homelab (apps-prod) values.
+# Matches the Custodia deployment pattern: bundled Postgres StatefulSet (no CNPG
+# operator in this cluster), Redis, GHCR images, ESO-materialised secrets,
+# nginx ingress + cert-manager, per-app Cloudflare Tunnel.
+
+nameOverride: ""
+namespace: vantage-prod
+
+image:
+  registry: ghcr.io/giddychild
+  tag: "0.1.0"            # bumped by `make bump`; pinned by digest in prod-values
+  pullPolicy: IfNotPresent
+  pullSecrets: [ghcr-creds]
+
+api:
+  replicas: 2
+  resources:
+    requests: { cpu: 100m, memory: 384Mi }
+    limits:   { cpu: "1",  memory: 1Gi }
+  env:
+    LOG_LEVEL: INFO
+    LOG_FORMAT: json
+
+web:
+  replicas: 2
+  resources:
+    requests: { cpu: 50m,  memory: 192Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+# One Deployment per worker role so a discovery outage cannot starve generation.
+workers:
+  discovery: { replicas: 1, resources: { requests: { cpu: 100m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } } }
+  enrich:    { replicas: 2, resources: { requests: { cpu: 200m, memory: 768Mi }, limits: { cpu: "2", memory: 2Gi } } }
+  generate:  { replicas: 2, resources: { requests: { cpu: 200m, memory: 768Mi }, limits: { cpu: "2", memory: 2Gi } } }
+  # No submit worker: nothing in this system submits an application.
+  # See docs/00-decisions-and-pushback.md C3.
+
+postgres:
+  enabled: true                       # ADR-005: no CNPG operator in this cluster
+  image: pgvector/pgvector:pg16
+  storage:
+    className: longhorn
+    size: 20Gi
+  resources:
+    requests: { cpu: 250m, memory: 1Gi }
+    limits:   { cpu: "2",  memory: 4Gi }
+  # secret `vantage-db-app` is created OUT OF BAND with kubectl (never in git —
+  # homelab-k8s is a PUBLIC repo). Keys: `password` (StatefulSet), `uri` (app).
+  existingSecret: vantage-db-app
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+  storage: { className: longhorn, size: 2Gi }
+  resources:
+    requests: { cpu: 50m,  memory: 128Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+objectStore:
+  endpoint: http://minio.minio.svc.cluster.local:9000
+  bucket: vantage
+  region: us-east-1
+  # access keys via ESO → vantage-secrets
+
+# Occupation taxonomy: O*NET (~900 US occupations, every sector). Seeded once by
+# a Job; makes the system usable by a nurse or a teacher, not just an engineer.
+taxonomy:
+  source: onet
+  seedVersion: "29.0"
+  ladders: [software_ic, us_federal_gs, rn_clinical, k12_teaching, trades]
+
+ai:
+  local:
+    baseUrl: http://ollama.ai-ops.svc.cluster.local:11434
+    extractModel: qwen2.5:7b-instruct
+    embedModel: nomic-embed-text
+    embedDim: 768
+  frontier:
+    enabled: true
+    provider: anthropic
+    model: claude-opus-5
+    # api key via ESO → vantage-secrets key `anthropic_api_key`
+    monthlyBudgetUSD: 25          # per person
+  redactionProxy: true                # PII tokenised before leaving the cluster
+
+ingress:
+  enabled: true
+  className: nginx
+  # Single hostname, no *.apps subdomain. NOTE: the wildcard *.apps.giddyland.net
+  # points at the LB, but *.giddyland.net resolves to the gateway (.1), so this
+  # host needs its OWN Cloudflare A record -> 192.168.216.230. Same as Custodia.
+  host: vantage.giddyland.net
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+  tls: true
+
+# Public exposure. Route in the Cloudflare dashboard points at
+# ingress-nginx-controller.ingress-nginx.svc.cluster.local:443 with
+# Origin-Server-Name + Host header = vantage.giddyland.net.
+cloudflare:
+  tunnel:
+    enabled: false                    # flip on after Cloudflare Access is configured
+    image: cloudflare/cloudflared:2026.5.2
+    replicas: 2
+    tokenSecret: vantage-tunnel-token
+
+auth:
+  oidc:
+    enabled: true
+    issuer: https://auth.giddyland.net/application/o/vantage/
+    clientId: vantage
+    # client secret via ESO → vantage-secrets
+
+externalSecrets:
+  # OFF for Phase 0: the Vault keys below do not exist yet, and ESO fails the
+  # whole ExternalSecret on a missing key, so `vantage-secrets` would never be
+  # created and no pod would start (the LearnQuest cf_tunnel_token footgun).
+  #
+  # `vantage-secrets` is currently a hand-made Secret created with kubectl.
+  # Write the Vault paths, flip this to true, and ESO adopts the Secret
+  # (creationPolicy: Owner) — no other change needed.
+  enabled: false
+  storeRef: vault-backend             # existing ClusterSecretStore, verified Ready
+  # Vault KV paths → k8s Secret `vantage-secrets`
+  #   secret/vantage/app     : anthropic_api_key, oidc_client_secret,
+  #                            column_encryption_key, jwt_secret
+  #   secret/vantage/blob    : minio_access_key, minio_secret_key
+  #   secret/vantage/notify  : discord_webhook_url, smtp_url, ntfy_topic
+  #   secret/vantage/sources : greenhouse_key, lever_key, ashby_key,
+  #                            smartrecruiters_key, usajobs_key, adzuna_key
+  #   secret/vantage/mailbox : imap_url, imap_user, imap_password
+
+# Per-person defaults, written into `settings` on first login. No auto-submit
+# knobs: no job platform permits an outside applicant to submit
+# programmatically, so these are personal-discipline settings, not safety gates.
+settings:
+  shortlistFloor: 0.60
+  dailyPrepareCap: 10
+  perCompanyCooldownDays: 30
+  packageExpiryHours: 72
+  ghostAfterDays: 45
+  currency: USD
+
+cron:
+  discovery:  { schedule: "0 */4 * * *" }
+  rescore:    { schedule: "30 2 * * *" }
+  ghostSweep: { schedule: "0 3 * * *" }
+  dailyDigest: { schedule: "0 7 * * *" }
+  weeklyReport: { schedule: "0 8 * * 1" }
+  pgDump:     { schedule: "30 2 * * *", retentionDays: 30 }
+
+networkPolicy:
+  enabled: true
+  # Default deny + explicit allows. Workers reach the internet on 443 only, to
+  # this FQDN allowlist. Adding a connector means adding its host here.
+  egressAllowFQDN:
+    # direct ATS (discovery only — these APIs are read-only for applicants)
+    - boards-api.greenhouse.io
+    - api.lever.co
+    - api.ashbyhq.com
+    - api.smartrecruiters.com
+    - apply.workable.com
+    # remote-first boards
+    - himalayas.app
+    - remotive.com
+    # government — every occupation, not just technical
+    - data.usajobs.gov
+    - api.careeronestop.org
+    # AI
+    - api.anthropic.com
+
+monitoring:
+  serviceMonitor: true
+  prometheusRules: true
+  grafanaDashboard: true
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+  seccompProfile: { type: RuntimeDefault }
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: ["ALL"] }
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
