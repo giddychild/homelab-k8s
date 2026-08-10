@@ -40,7 +40,11 @@ postgres:
   image: pgvector/pgvector:pg16
   storage:
     className: longhorn
-    size: 20Gi
+    # 3 replicas x this size must fit, and Longhorn keeps a ~30% per-disk
+    # reserve. 20Gi failed with ReplicaSchedulingFailure on this cluster.
+    # Longhorn volumes expand in place, so start small and grow when needed:
+    # ~100k jobs with 768-dim embeddings is well under 2Gi.
+    size: 8Gi
   resources:
     requests: { cpu: 250m, memory: 1Gi }
     limits:   { cpu: "2",  memory: 4Gi }
