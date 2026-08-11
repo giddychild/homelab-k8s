@@ -8,7 +8,7 @@ namespace: vantage-prod
 
 image:
   registry: ghcr.io/giddychild
-  tag: "0.3.0"            # bumped by `make bump`; pinned by digest in prod-values
+  tag: "0.3.1"            # bumped by `make bump`; pinned by digest in prod-values
   pullPolicy: IfNotPresent
   pullSecrets: [ghcr-creds]
 
@@ -116,12 +116,16 @@ cloudflare:
     replicas: 2
     tokenSecret: vantage-tunnel-token
 
+# Cloudflare Access is the identity provider — the same one-time-email-PIN
+# flow used for money.giddyland.net. No client secret, no application to
+# register: validation uses Cloudflare's public keys.
 auth:
-  oidc:
+  access:
     enabled: true
-    issuer: https://auth.giddyland.net/application/o/vantage/
-    clientId: vantage
-    # client secret via ESO → vantage-secrets
+    teamDomain: giddyland.cloudflareaccess.com
+    # Application AUD tag. Not a secret — it appears in the public login
+    # redirect. Changes if the Access application is deleted and recreated.
+    aud: 231eac805f719922f1b40b6b9d04782aef53047350b14478e4c5766d0f64d60c
 
 externalSecrets:
   # OFF for Phase 0: the Vault keys below do not exist yet, and ESO fails the
@@ -134,8 +138,9 @@ externalSecrets:
   enabled: false
   storeRef: vault-backend             # existing ClusterSecretStore, verified Ready
   # Vault KV paths → k8s Secret `vantage-secrets`
-  #   secret/vantage/app     : anthropic_api_key, oidc_client_secret,
-  #                            column_encryption_key, jwt_secret
+  #   secret/vantage/app     : anthropic_api_key, column_encryption_key,
+  #                            jwt_secret        (no oidc_client_secret —
+  #                            Cloudflare Access needs no client secret)
   #   secret/vantage/blob    : minio_access_key, minio_secret_key
   #   secret/vantage/notify  : discord_webhook_url, smtp_url, ntfy_topic
   #   secret/vantage/sources : greenhouse_key, lever_key, ashby_key,

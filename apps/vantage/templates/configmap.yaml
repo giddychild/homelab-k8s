@@ -23,10 +23,10 @@ data:
   AI_MONTHLY_BUDGET_USD: {{ .Values.ai.frontier.monthlyBudgetUSD | quote }}
   AI_REDACTION_PROXY:    {{ .Values.ai.redactionProxy | quote }}
 
-  # auth
-  OIDC_ENABLED:   {{ .Values.auth.oidc.enabled | quote }}
-  OIDC_ISSUER:    {{ .Values.auth.oidc.issuer | quote }}
-  OIDC_CLIENT_ID: {{ .Values.auth.oidc.clientId | quote }}
+  # auth — Cloudflare Access. Neither value is secret.
+  ACCESS_ENABLED:     {{ .Values.auth.access.enabled | quote }}
+  ACCESS_TEAM_DOMAIN: {{ .Values.auth.access.teamDomain | quote }}
+  ACCESS_AUD:         {{ .Values.auth.access.aud | quote }}
 
   # policy defaults (DB `settings` overrides these once a user exists)
   SHORTLIST_FLOOR:            {{ .Values.settings.shortlistFloor | quote }}
