@@ -61,10 +61,27 @@ redis:
     limits:   { cpu: 500m, memory: 512Mi }
 
 objectStore:
-  endpoint: http://minio.minio.svc.cluster.local:9000
+  enabled: true
+  # In-namespace, not a shared `minio` namespace. This previously pointed at
+  # minio.minio.svc.cluster.local, where nothing was ever deployed — the app was
+  # configured against a service that did not exist, and it went unnoticed
+  # because no code path had exercised it yet.
+  # The endpoint is derived in the ConfigMap from the release name; there is no
+  # hostname to keep in sync by hand.
+  image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+  mcImage: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
   bucket: vantage
   region: us-east-1
-  # access keys via ESO → vantage-secrets
+  storage:
+    className: longhorn
+    # Resumes and generated documents: a few hundred KB each, for a household.
+    # Longhorn volumes expand in place, so start small.
+    size: 5Gi
+  resources:
+    requests: { cpu: 50m,  memory: 256Mi }
+    limits:   { cpu: "1",  memory: 1Gi }
+  # access keys via ESO → vantage-secrets (BLOB_ACCESS_KEY / BLOB_SECRET_KEY).
+  # MinIO reads the same two values as its root credentials.
 
 # Occupation taxonomy: O*NET (~900 US occupations, every sector). Seeded once by
 # a Job; makes the system usable by a nurse or a teacher, not just an engineer.

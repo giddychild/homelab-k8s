@@ -1,0 +1,153 @@
+{{- if .Values.objectStore.enabled }}
+# Object storage for uploaded resumes and generated documents.
+#
+# In this namespace, not a shared `minio` one. The chart originally pointed
+# BLOB_ENDPOINT at minio.minio.svc.cluster.local and nothing was ever deployed
+# there — the app was configured against a service that did not exist, which
+# only surfaced when the backup CronJob failed. Keeping it in-namespace means
+# the dependency is visible in one chart, the NetworkPolicy is a same-namespace
+# rule rather than a cross-namespace one, and there is no second team's service
+# to coordinate with.
+#
+# Single replica, deliberately. MinIO's distributed mode wants 4+ nodes and buys
+# erasure coding; here the durability story is Longhorn replication underneath
+# plus the daily Velero backup of this namespace to S3. A four-pod quorum for a
+# household's resumes would be cargo cult.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "vantage.fullname" . }}-minio
+  labels: {{- include "vantage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+spec:
+  serviceName: {{ include "vantage.fullname" . }}-minio
+  replicas: 1
+  selector:
+    matchLabels: {{- include "vantage.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: minio
+  template:
+    metadata:
+      labels: {{- include "vantage.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: minio
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: minio
+          image: {{ .Values.objectStore.image | quote }}
+          args: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
+          env:
+            # MinIO calls these root credentials; they are the same values the
+            # app uses as its S3 access/secret key. Sourced from Vault via ESO —
+            # see values.yaml externalSecrets.
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef: { name: vantage-secrets, key: BLOB_ACCESS_KEY }
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: vantage-secrets, key: BLOB_SECRET_KEY }
+            # Browser console off: this holds resumes, it is not something to
+            # expose a login page for. Access is via the API only.
+            - name: MINIO_BROWSER
+              value: "off"
+          ports:
+            - { name: s3, containerPort: 9000 }
+          securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          readinessProbe:
+            httpGet: { path: /minio/health/ready, port: s3 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /minio/health/live, port: s3 }
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources: {{- toYaml .Values.objectStore.resources | nindent 12 }}
+          volumeMounts:
+            - { name: data, mountPath: /data }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ .Values.objectStore.storage.className }}
+        resources: { requests: { storage: {{ .Values.objectStore.storage.size }} } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "vantage.fullname" . }}-minio
+  labels: {{- include "vantage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+spec:
+  selector: {{- include "vantage.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+  ports: [{ name: s3, port: 9000, targetPort: s3 }]
+---
+# Create the bucket. A Helm hook rather than an initContainer on the API,
+# because it must happen once per install, not once per pod start.
+#
+# `mc mb --ignore-existing` is idempotent, which is what makes it safe to rerun
+# on every upgrade — and it is rerun, because a hook with hook-delete-policy
+# before-hook-creation replaces itself each time.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "vantage.fullname" . }}-minio-init
+  labels: {{- include "vantage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: minio-init
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+    # ArgoCD runs Helm hooks as its own sync hooks; both annotations are needed
+    # so this behaves the same whether applied by Helm or by ArgoCD.
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels: {{- include "vantage.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: minio-init
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: mc
+          image: {{ .Values.objectStore.mcImage | quote }}
+          securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: BLOB_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: { name: vantage-secrets, key: BLOB_ACCESS_KEY }
+            - name: BLOB_SECRET_KEY
+              valueFrom:
+                secretKeyRef: { name: vantage-secrets, key: BLOB_SECRET_KEY }
+            # mc writes its config here; the root filesystem is read-only.
+            - name: MC_CONFIG_DIR
+              value: /tmp/.mc
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              # The StatefulSet may still be starting. Retry rather than fail
+              # the sync — a bucket-create racing a pod start is normal.
+              for i in $(seq 1 30); do
+                if mc --config-dir "$MC_CONFIG_DIR" alias set store \
+                     "http://{{ include "vantage.fullname" . }}-minio:9000" \
+                     "$BLOB_ACCESS_KEY" "$BLOB_SECRET_KEY" >/dev/null 2>&1; then
+                  break
+                fi
+                echo "waiting for minio ($i/30)"; sleep 5
+              done
+              mc --config-dir "$MC_CONFIG_DIR" mb --ignore-existing store/{{ .Values.objectStore.bucket }}
+              # Resumes are private. Explicit, because a bucket that is public
+              # by accident is the classic way documents like these leak.
+              mc --config-dir "$MC_CONFIG_DIR" anonymous set none store/{{ .Values.objectStore.bucket }}
+              echo "bucket {{ .Values.objectStore.bucket }} ready"
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: tmp, emptyDir: { sizeLimit: 64Mi } }
+{{- end }}
