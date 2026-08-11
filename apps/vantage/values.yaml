@@ -128,14 +128,13 @@ auth:
     aud: 231eac805f719922f1b40b6b9d04782aef53047350b14478e4c5766d0f64d60c
 
 externalSecrets:
-  # OFF for Phase 0: the Vault keys below do not exist yet, and ESO fails the
-  # whole ExternalSecret on a missing key, so `vantage-secrets` would never be
-  # created and no pod would start (the LearnQuest cf_tunnel_token footgun).
+  # Vault paths written and verified; ESO now owns `vantage-secrets` and adopts
+  # the hand-made Secret in place (creationPolicy: Owner).
   #
-  # `vantage-secrets` is currently a hand-made Secret created with kubectl.
-  # Write the Vault paths, flip this to true, and ESO adopts the Secret
-  # (creationPolicy: Owner) — no other change needed.
-  enabled: false
+  # Every key listed below MUST exist in Vault, even as an empty string — ESO
+  # fails the entire ExternalSecret on one missing key, so the Secret is never
+  # created and no pod starts. Same footgun as LearnQuest's cf_tunnel_token.
+  enabled: true
   storeRef: vault-backend             # existing ClusterSecretStore, verified Ready
   # Vault KV paths → k8s Secret `vantage-secrets`
   #   secret/vantage/app     : anthropic_api_key, column_encryption_key,
