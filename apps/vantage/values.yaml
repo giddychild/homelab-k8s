@@ -8,7 +8,7 @@ namespace: vantage-prod
 
 image:
   registry: ghcr.io/giddychild
-  tag: "0.16.0"            # bumped by `make bump`; pinned by digest in prod-values
+  tag: "0.16.1"            # bumped by `make bump`; pinned by digest in prod-values
   pullPolicy: IfNotPresent
   pullSecrets: [ghcr-creds]
 

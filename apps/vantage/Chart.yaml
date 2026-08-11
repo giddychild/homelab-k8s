@@ -2,8 +2,8 @@ apiVersion: v2
 name: vantage
 description: Family job-search agent — discovery, scoring, tailoring, assisted apply
 type: application
-version: 0.16.0
-appVersion: "0.16.0"
+version: 0.16.1
+appVersion: "0.16.1"
 keywords: [jobs, ai, automation]
 home: https://vantage.giddyland.net
 sources:
