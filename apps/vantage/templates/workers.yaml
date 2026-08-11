@@ -14,6 +14,13 @@ spec:
       vantage.io/queue: {{ $role }}
   template:
     metadata:
+      # Roll when the ConfigMap changes. Without this a config edit lands in the
+      # ConfigMap and the running pods keep the old values indefinitely, because
+      # envFrom is resolved once at pod start. That is exactly how these workers
+      # kept pointing at a MinIO endpoint that had been changed hours earlier
+      # while the API — which already had this annotation — picked it up.
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") $ | sha256sum }}
       labels: {{- include "vantage.selectorLabels" $ | nindent 8 }}
         app.kubernetes.io/component: worker
         vantage.io/queue: {{ $role }}
