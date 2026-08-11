@@ -8,7 +8,7 @@ namespace: vantage-prod
 
 image:
   registry: ghcr.io/giddychild
-  tag: "0.13.0"            # bumped by `make bump`; pinned by digest in prod-values
+  tag: "0.14.0"            # bumped by `make bump`; pinned by digest in prod-values
   pullPolicy: IfNotPresent
   pullSecrets: [ghcr-creds]
 
@@ -175,8 +175,11 @@ settings:
   currency: USD
 
 cron:
-  discovery:  { schedule: "0 */4 * * *" }
-  rescore:    { schedule: "30 2 * * *" }
+  # suspend defaults to true in the template. These two are unsuspended
+  # because `app.cron` now implements them; the other three still run
+  # against tasks that do not exist and must stay suspended until they do.
+  discovery:  { schedule: "0 */6 * * *", suspend: false }
+  rescore:    { schedule: "30 2 * * *", suspend: false }
   ghostSweep: { schedule: "0 3 * * *" }
   dailyDigest: { schedule: "0 7 * * *" }
   weeklyReport: { schedule: "0 8 * * 1" }
