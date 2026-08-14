@@ -8,7 +8,7 @@ namespace: vantage-prod
 
 image:
   registry: ghcr.io/giddychild
-  tag: "0.24.0"            # bumped by `make bump`; pinned by digest in prod-values
+  tag: "0.25.0"            # bumped by `make bump`; pinned by digest in prod-values
   pullPolicy: IfNotPresent
   pullSecrets: [ghcr-creds]
 
@@ -32,8 +32,13 @@ workers:
   discovery: { replicas: 1, resources: { requests: { cpu: 100m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } } }
   enrich:    { replicas: 2, resources: { requests: { cpu: 200m, memory: 768Mi }, limits: { cpu: "2", memory: 2Gi } } }
   generate:  { replicas: 2, resources: { requests: { cpu: 200m, memory: 768Mi }, limits: { cpu: "2", memory: 2Gi } } }
-  # No submit worker: nothing in this system submits an application.
-  # See docs/00-decisions-and-pushback.md C3.
+  # Still no submit worker, and now for a different reason. Decision C3 said
+  # nothing here submits at all; that was reversed deliberately, twice asked
+  # for after the risks were laid out. What did NOT change is where submission
+  # happens: the Companion extension, in the person's own browser and session.
+  # A server-side headless browser applying from a datacentre is both what job
+  # boards actually detect and a much worse thing to be wrong about, so there
+  # is no server-side submitter to scale here.
 
 postgres:
   enabled: true                       # ADR-005: no CNPG operator in this cluster
@@ -163,9 +168,18 @@ externalSecrets:
   #                            smartrecruiters_key, usajobs_key, adzuna_key
   #   secret/vantage/mailbox : imap_url, imap_user, imap_password
 
-# Per-person defaults, written into `settings` on first login. No auto-submit
-# knobs: no job platform permits an outside applicant to submit
-# programmatically, so these are personal-discipline settings, not safety gates.
+# Per-person defaults, written into `settings` on first login.
+#
+# There ARE auto-apply knobs now (auto_apply, auto_submit, auto_apply_floor),
+# added in migration 0016 and defaulting to off per account. They are not
+# defaulted here on purpose: a chart value that switched automatic applying on
+# for everybody at once is exactly the setting that should require a person to
+# find it and turn it on themselves.
+#
+# The finding behind the old comment still stands and still matters: no major
+# ATS grants an outside applicant permission to submit programmatically. So the
+# cap and the cooldown below are not decoration — they are what keeps this
+# looking like a person applying, which it is.
 settings:
   shortlistFloor: 0.60
   dailyPrepareCap: 10
@@ -180,6 +194,9 @@ cron:
   # against tasks that do not exist and must stay suspended until they do.
   discovery:  { schedule: "0 */6 * * *", suspend: false }
   rescore:    { schedule: "30 2 * * *", suspend: false }
+  # Safe to leave running: `settings.auto_apply` defaults to false, so this
+  # tops up nobody's queue until somebody turns the switch on themselves.
+  autoApply:  { schedule: "15 */2 * * *", suspend: false }
   ghostSweep: { schedule: "0 3 * * *" }
   dailyDigest: { schedule: "0 7 * * *" }
   weeklyReport: { schedule: "0 8 * * 1" }
