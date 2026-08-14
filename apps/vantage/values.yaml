@@ -8,7 +8,7 @@ namespace: vantage-prod
 
 image:
   registry: ghcr.io/giddychild
-  tag: "0.26.0"            # bumped by `make bump`; pinned by digest in prod-values
+  tag: "0.27.0"            # bumped by `make bump`; pinned by digest in prod-values
   pullPolicy: IfNotPresent
   pullSecrets: [ghcr-creds]
 
@@ -32,13 +32,23 @@ workers:
   discovery: { replicas: 1, resources: { requests: { cpu: 100m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } } }
   enrich:    { replicas: 2, resources: { requests: { cpu: 200m, memory: 768Mi }, limits: { cpu: "2", memory: 2Gi } } }
   generate:  { replicas: 2, resources: { requests: { cpu: 200m, memory: 768Mi }, limits: { cpu: "2", memory: 2Gi } } }
-  # Still no submit worker, and now for a different reason. Decision C3 said
-  # nothing here submits at all; that was reversed deliberately, twice asked
-  # for after the risks were laid out. What did NOT change is where submission
-  # happens: the Companion extension, in the person's own browser and session.
-  # A server-side headless browser applying from a datacentre is both what job
-  # boards actually detect and a much worse thing to be wrong about, so there
-  # is no server-side submitter to scale here.
+  # There IS a submit worker now. Decision C3 said nothing here submits at all;
+  # that was reversed deliberately, asked for repeatedly after the risks were
+  # laid out in full (see docs/00-decisions-and-pushback.md C3a).
+  #
+  # ONE replica, and that is a design decision rather than a resource one. Two
+  # pods would apply to two jobs at once from the same address, which is both
+  # the behaviour a rate limiter notices and a good way to submit twice to one
+  # employer despite the cooldown.
+  #
+  # The reasoning that made a datacentre browser a bad idea does not apply
+  # here: this cluster egresses through the house's own connection, so the
+  # applications come from a residential address rather than an AWS range. That
+  # is most of why this is worth doing at all.
+  #
+  # Memory is generous because Chromium is. A 1Gi limit OOM-kills mid-form,
+  # which reads as a mysterious failure rather than as running out of memory.
+  submit:    { replicas: 1, resources: { requests: { cpu: 250m, memory: 1Gi },  limits: { cpu: "2", memory: 3Gi } } }
 
 postgres:
   enabled: true                       # ADR-005: no CNPG operator in this cluster
@@ -197,6 +207,10 @@ cron:
   # Safe to leave running: `settings.auto_apply` defaults to false, so this
   # tops up nobody's queue until somebody turns the switch on themselves.
   autoApply:  { schedule: "15 */2 * * *", suspend: false }
+  # Offset from autoApply so packages have time to generate before the browser
+  # goes looking for them. Same safety: does nothing while auto_apply is false,
+  # and submits nothing while auto_submit is false.
+  autoSubmit: { schedule: "45 */2 * * *", suspend: false }
   ghostSweep: { schedule: "0 3 * * *" }
   dailyDigest: { schedule: "0 7 * * *" }
   weeklyReport: { schedule: "0 8 * * 1" }

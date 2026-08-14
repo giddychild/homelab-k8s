@@ -32,12 +32,42 @@ spec:
         {{- end }}
       {{- end }}
       automountServiceAccountToken: false
+      {{- if eq $role "submit" }}
+      # uid 1000 is the Playwright base image's `pwuser`, which owns the
+      # browser install and its cache. Forcing the other images' 10001 here
+      # gives a Chromium that cannot read its own binaries.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      {{- else }}
       securityContext: {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      {{- end }}
       containers:
         - name: worker
-          image: "{{ $.Values.image.registry }}/vantage-worker:{{ $.Values.image.tag }}"
+          # The submit role runs a different image because it carries Chromium.
+          # Same `app` package and same WorkerSettings — only the browser and
+          # its ~700 MB of system libraries differ, which discovery, enrich and
+          # generate would otherwise pull on every restart.
+          image: "{{ $.Values.image.registry }}/vantage-{{ if eq $role "submit" }}submit{{ else }}worker{{ end }}:{{ $.Values.image.tag }}"
           imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          {{- if eq $role "submit" }}
+          # Chromium's own sandbox needs to create user namespaces, which
+          # `allowPrivilegeEscalation: false` plus a dropped capability set
+          # forbids. Rather than granting SYS_ADMIN back, the browser is run
+          # with --no-sandbox inside a container that is itself the sandbox:
+          # non-root, read-only root filesystem, no service-account token, and
+          # egress confined by NetworkPolicy. It also runs as the base image's
+          # pwuser, which owns the browser cache the profile is written to.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          {{- else }}
           securityContext: {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          {{- end }}
           envFrom:
             - configMapRef: { name: {{ include "vantage.fullname" $ }}-config }
             - secretRef:    { name: vantage-secrets }
@@ -55,8 +85,12 @@ spec:
           resources: {{- toYaml $cfg.resources | nindent 12 }}
           volumeMounts:
             - { name: tmp, mountPath: /tmp }
-            # Playwright needs a writable browser profile dir under a read-only rootfs
-            - { name: browser, mountPath: /home/vantage/.cache }
+            # Chromium needs a writable profile under a read-only rootfs. The
+            # path differs by image: the submit image is built on Microsoft's
+            # Playwright base and runs as its `pwuser`, so mounting the other
+            # image's /home/vantage/.cache there leaves the browser writing to
+            # a read-only home and failing to launch.
+            - { name: browser, mountPath: /home/{{ if eq $role "submit" }}pwuser{{ else }}vantage{{ end }}/.cache }
       volumes:
         - name: tmp
           emptyDir: { sizeLimit: 2Gi }
