@@ -1,66 +1,242 @@
 {{- if .Values.networkPolicy.enabled }}
-# Default-deny ingress for the namespace, then allow only what is needed.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
+# Full default-deny + explicit-allow zero-trust for the certprep namespace.
+#
+# LABEL CONVENTION: this chart labels component pods `app: certprep-<component>`
+# (api, web, redis, cloudflared, migrate, import). Postgres pods use
+# `cnpg.io/cluster: certprep-pg` (CNPG's own convention) and are NOT matched by
+# an `app:` selector — the mistake learnquest documents having made, and which
+# this chart repeated on first deploy: a plain Ingress-only default-deny with no
+# Postgres allow left the migrate Job timing out on TCP to certprep-pg-rw.
+#
+# These are CiliumNetworkPolicies, not core NetworkPolicies, because the
+# cluster runs Cilium and the egress/FQDN rules below have no core equivalent.
+---
+# 1) Default-deny: no ingress; egress limited to DNS, intra-namespace and the
+#    kube-apiserver (CNPG and the Cilium identity libraries need the last one).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
 metadata:
   name: {{ include "certprep.name" . }}-default-deny
-  labels: {{- include "certprep.labels" . | nindent 4 }}
 spec:
-  podSelector: {}
-  policyTypes: [Ingress]
+  endpointSelector: {}
+  ingress: []
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+          rules:
+            dns:
+              - matchPattern: "*"
+    # Intra-namespace egress — web -> api, api -> redis/postgres service IPs.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ .Release.Namespace }}
+    - toEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP }
 ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
+# 2) ingress-nginx + cloudflared -> web.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
 metadata:
-  name: {{ include "certprep.name" . }}-web
-  labels: {{- include "certprep.labels" . | nindent 4 }}
+  name: {{ include "certprep.name" . }}-ingress-to-web
 spec:
-  podSelector:
-    matchLabels: { app: {{ include "certprep.name" . }}-web }
-  policyTypes: [Ingress]
+  endpointSelector:
+    matchLabels:
+      app: {{ include "certprep.name" . }}-web
   ingress:
-    # From the ingress controller, and from cloudflared for the public host.
-    - from:
-        - namespaceSelector:
-            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
-        - podSelector:
-            matchLabels: { app: {{ include "certprep.name" . }}-cloudflared }
-      ports: [{ protocol: TCP, port: {{ .Values.web.port }} }]
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+        - matchLabels:
+            app: {{ include "certprep.name" . }}-cloudflared
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.web.port }}", protocol: TCP }
 ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
+# 3) ingress-nginx + web + cloudflared -> api.
+# The Ingress routes /api straight to the api Service, so ingress-nginx needs
+# its own allow here and not only the one to web.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
 metadata:
-  name: {{ include "certprep.name" . }}-api
-  labels: {{- include "certprep.labels" . | nindent 4 }}
+  name: {{ include "certprep.name" . }}-to-api
 spec:
-  podSelector:
-    matchLabels: { app: {{ include "certprep.name" . }}-api }
-  policyTypes: [Ingress]
+  endpointSelector:
+    matchLabels:
+      app: {{ include "certprep.name" . }}-api
   ingress:
-    # The API is reachable from the ingress (/api path), from the web pods
-    # (their runtime proxy), and from the migrate/import jobs. Nothing else in
-    # the cluster needs it.
-    - from:
-        - namespaceSelector:
-            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
-        - podSelector:
-            matchLabels: { app: {{ include "certprep.name" . }}-web }
-        - podSelector:
-            matchLabels: { app: {{ include "certprep.name" . }}-cloudflared }
-      ports: [{ protocol: TCP, port: {{ .Values.api.port }} }]
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+        - matchLabels:
+            app: {{ include "certprep.name" . }}-web
+        - matchLabels:
+            app: {{ include "certprep.name" . }}-cloudflared
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.api.port }}", protocol: TCP }
 ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
+# 4) api + migrate + import -> postgres + redis (EGRESS side).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
 metadata:
-  name: {{ include "certprep.name" . }}-redis
-  labels: {{- include "certprep.labels" . | nindent 4 }}
+  name: {{ include "certprep.name" . }}-app-to-data
 spec:
-  podSelector:
-    matchLabels: { app: {{ include "certprep.name" . }}-redis }
-  policyTypes: [Ingress]
+  endpointSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - {{ include "certprep.name" . }}-api
+          - {{ include "certprep.name" . }}-migrate
+          - {{ include "certprep.name" . }}-import
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "certprep.name" . }}-pg
+      toPorts:
+        - ports:
+            - { port: "5432", protocol: TCP }
+    - toEndpoints:
+        - matchLabels:
+            app: {{ include "certprep.name" . }}-redis
+      toPorts:
+        - ports:
+            - { port: "6379", protocol: TCP }
+---
+# 5) Postgres INGRESS — CNPG operator, app pods, and intra-cluster replication.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "certprep.name" . }}-pg-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ include "certprep.name" . }}-pg
   ingress:
-    - from:
-        - podSelector:
-            matchLabels: { app: {{ include "certprep.name" . }}-api }
-      ports: [{ protocol: TCP, port: 6379 }]
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - { port: "5432", protocol: TCP }
+            - { port: "8000", protocol: TCP }
+            - { port: "9187", protocol: TCP }
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app
+              operator: In
+              values:
+                - {{ include "certprep.name" . }}-api
+                - {{ include "certprep.name" . }}-migrate
+                - {{ include "certprep.name" . }}-import
+      toPorts:
+        - ports:
+            - { port: "5432", protocol: TCP }
+    # Streaming replication between the primary and its replica.
+    - fromEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "certprep.name" . }}-pg
+---
+# 6) Postgres EGRESS — DNS, apiserver, intra-cluster replication.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "certprep.name" . }}-pg-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ include "certprep.name" . }}-pg
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP }
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "certprep.name" . }}-pg
+---
+# 7) Redis INGRESS — api only. Nothing else has any business there.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "certprep.name" . }}-redis-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      app: {{ include "certprep.name" . }}-redis
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: {{ include "certprep.name" . }}-api
+      toPorts:
+        - ports:
+            - { port: "6379", protocol: TCP }
+{{- if .Values.cloudflare.tunnel.enabled }}
+---
+# 8) cloudflared -> ingress-nginx and the Cloudflare edge.
+# The tunnel's public hostname points at ingress-nginx over HTTPS/443, so that
+# allow is the one that matters; the direct web/api allows are kept so the
+# route can be repointed in the dashboard without another deploy.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "certprep.name" . }}-cloudflared-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      app: {{ include "certprep.name" . }}-cloudflared
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress-nginx
+      toPorts:
+        - ports:
+            - { port: "80",  protocol: TCP }
+            - { port: "443", protocol: TCP }
+    - toEndpoints:
+        - matchLabels:
+            app: {{ include "certprep.name" . }}-web
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.web.port }}", protocol: TCP }
+    - toEndpoints:
+        - matchLabels:
+            app: {{ include "certprep.name" . }}-api
+      toPorts:
+        - ports:
+            - { port: "{{ .Values.api.port }}", protocol: TCP }
+    # Cloudflare edge. matchPattern does not span dots, so *.v2.argotunnel.com
+    # is listed separately from *.argotunnel.com — see money's policy.
+    - toFQDNs:
+        - { matchPattern: "*.cloudflare.com" }
+        - { matchPattern: "*.cfargotunnel.com" }
+        - { matchPattern: "*.argotunnel.com" }
+        - { matchPattern: "*.v2.argotunnel.com" }
+        - { matchPattern: "*.cloudflareclient.com" }
+        - { matchPattern: "*.cloudflareresearch.com" }
+      toPorts:
+        - ports:
+            - { port: "443",  protocol: TCP }
+            - { port: "7844", protocol: TCP }
+            - { port: "7844", protocol: UDP }
+{{- end }}
 {{- end }}
