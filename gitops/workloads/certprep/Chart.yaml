@@ -1,0 +1,6 @@
+apiVersion: v2
+name: certprep
+description: Self-hosted certification exam simulator (apps-prod)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

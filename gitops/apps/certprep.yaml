@@ -1,0 +1,35 @@
+# Child Application — homelab ArgoCD (hub) deploys CertPrep (self-hosted
+# certification exam simulator) to the apps-prod cluster (hub-and-spoke),
+# sibling of careledger/deuce/learnquest/money. Chart lives in this public repo
+# (secret-free); app secrets come from Vault via ESO (cross-cluster AppRole).
+# App source is the private giddychild/certprep repo; images in GHCR (pulled
+# via ghcr-pull). Same pattern as deuce.yaml.
+#
+# Sync waves inside the chart: -10 ESO secret, -5 Postgres + Redis,
+# 5 alembic migrate (hook), 8 api + web, 10 question-bank import (hook).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: certprep
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/giddychild/homelab-k8s.git
+    targetRevision: main
+    path: gitops/workloads/certprep
+    helm:
+      valueFiles:
+        - values-homelab.yaml
+  destination:
+    server: https://192.168.216.204:6443   # apps-prod
+    namespace: certprep
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

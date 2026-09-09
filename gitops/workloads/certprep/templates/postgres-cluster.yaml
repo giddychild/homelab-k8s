@@ -1,0 +1,35 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "certprep.name" . }}-pg
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+  annotations:
+    # Wave -5: CNPG reports Health=Ready only once the primary accepts
+    # connections, so the migrate Job (wave 5) never races the database.
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  instances: {{ .Values.postgres.instances }}
+  imageName: {{ .Values.postgres.image }}
+
+  storage:
+    size: {{ .Values.postgres.storage.size }}
+    storageClass: {{ .Values.postgres.storage.storageClass }}
+
+  postgresql:
+    parameters:
+      max_connections: "100"
+
+  bootstrap:
+    initdb:
+      database: certprep
+      owner: certprep
+      # Fuzzy search needs pg_trgm. The migration creates it too, but doing it
+      # here means a fresh cluster has it before anything else runs.
+      postInitTemplateSQL:
+        - CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+  resources:
+    {{- toYaml .Values.postgres.resources | nindent 4 }}
+
+  monitoring:
+    enablePodMonitor: {{ .Values.serviceMonitor.enabled }}

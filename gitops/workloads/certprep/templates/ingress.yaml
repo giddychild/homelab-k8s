@@ -1,0 +1,42 @@
+{{- if .Values.ingress.enabled }}
+# Single host, two backends. Everything under /api goes straight to the API;
+# the rest is served by Next. Routing /api here means a browser on the LAN host
+# never makes the extra hop through the Next proxy — the proxy stays as the
+# path used inside the cluster and in local development.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "certprep.name" . }}
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.ingress.clusterIssuer }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer }}
+    {{- end }}
+    # Exhibit images are a few tens of KB; the default 1m body limit is ample.
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    # A mock exam is a long sitting, but individual requests are short.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts: [{{ .Values.ingress.host | quote }}]
+      secretName: {{ include "certprep.name" . }}-tls
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "certprep.name" . }}-api
+                port: { number: {{ .Values.api.port }} }
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "certprep.name" . }}-web
+                port: { number: {{ .Values.web.port }} }
+{{- end }}

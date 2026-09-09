@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "certprep.name" . }}-web
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  replicas: {{ .Values.web.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels: { app: {{ include "certprep.name" . }}-web }
+  template:
+    metadata:
+      labels:
+        app: {{ include "certprep.name" . }}-web
+        {{- include "certprep.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.image.pullSecret }}
+      imagePullSecrets: [{ name: {{ . }} }]
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: {{ include "certprep.name" . }}-web }
+      containers:
+        - name: web
+          image: "{{ .Values.image.registry }}/{{ .Values.image.web.repository }}:{{ .Values.image.web.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{ name: http, containerPort: {{ .Values.web.port }} }]
+          env:
+            # Read at request time by the /api/[...path] route handler. It is
+            # deliberately NOT a Next rewrite: rewrites are resolved at build
+            # time and would bake this hostname into the image.
+            - name: API_ORIGIN
+              value: "http://{{ include "certprep.name" . }}-api:{{ .Values.api.port }}"
+            - name: NODE_ENV
+              value: production
+          livenessProbe:
+            httpGet: { path: /login, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet: { path: /login, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources: {{- toYaml .Values.web.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: cache, mountPath: /app/.next/cache }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: cache, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "certprep.name" . }}-web
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+spec:
+  selector: { app: {{ include "certprep.name" . }}-web }
+  ports: [{ name: http, port: {{ .Values.web.port }}, targetPort: http }]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "certprep.name" . }}-web
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: {{ include "certprep.name" . }}-web }

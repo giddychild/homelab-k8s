@@ -1,0 +1,66 @@
+{{- if .Values.networkPolicy.enabled }}
+# Default-deny ingress for the namespace, then allow only what is needed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "certprep.name" . }}-default-deny
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "certprep.name" . }}-web
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: { app: {{ include "certprep.name" . }}-web }
+  policyTypes: [Ingress]
+  ingress:
+    # From the ingress controller, and from cloudflared for the public host.
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+        - podSelector:
+            matchLabels: { app: {{ include "certprep.name" . }}-cloudflared }
+      ports: [{ protocol: TCP, port: {{ .Values.web.port }} }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "certprep.name" . }}-api
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: { app: {{ include "certprep.name" . }}-api }
+  policyTypes: [Ingress]
+  ingress:
+    # The API is reachable from the ingress (/api path), from the web pods
+    # (their runtime proxy), and from the migrate/import jobs. Nothing else in
+    # the cluster needs it.
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+        - podSelector:
+            matchLabels: { app: {{ include "certprep.name" . }}-web }
+        - podSelector:
+            matchLabels: { app: {{ include "certprep.name" . }}-cloudflared }
+      ports: [{ protocol: TCP, port: {{ .Values.api.port }} }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "certprep.name" . }}-redis
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: { app: {{ include "certprep.name" . }}-redis }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: {{ include "certprep.name" . }}-api }
+      ports: [{ protocol: TCP, port: 6379 }]
+{{- end }}

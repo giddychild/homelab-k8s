@@ -1,0 +1,50 @@
+{{- if .Values.redis.enabled }}
+# Redis backs rate limiting only. It holds nothing that cannot be rebuilt, so
+# it is a plain Deployment with an emptyDir rather than a StatefulSet: losing it
+# resets counters and nothing else.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "certprep.name" . }}-redis
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: {{ include "certprep.name" . }}-redis }
+  template:
+    metadata:
+      labels: { app: {{ include "certprep.name" . }}-redis }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          args: ["redis-server", "--save", "", "--appendonly", "no", "--loglevel", "warning"]
+          ports: [{ name: redis, containerPort: 6379 }]
+          livenessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            periodSeconds: 10
+          resources: {{- toYaml .Values.redis.resources | nindent 12 }}
+          securityContext: {{- include "certprep.containerSecurity" . | nindent 12 }}
+          volumeMounts: [{ name: data, mountPath: /data }]
+      volumes: [{ name: data, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "certprep.name" . }}-redis
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+spec:
+  selector: { app: {{ include "certprep.name" . }}-redis }
+  ports: [{ name: redis, port: 6379, targetPort: redis }]
+{{- end }}

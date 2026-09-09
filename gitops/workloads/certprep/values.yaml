@@ -1,0 +1,103 @@
+# Default values for CertPrep. Overridden by values-homelab.yaml for apps-prod.
+#
+# CertPrep is a two-service app: a Next.js frontend that proxies /api to a
+# FastAPI backend, over CNPG Postgres and a small Redis. The 606-question bank
+# and its 915 exhibit images are baked into the API image, so the API is
+# stateless and needs no PVC — the bank is versioned content, released with the
+# code. Conventions mirror learnquest/money (ESO from Vault, ghcr-pull,
+# Cloudflare Tunnel for public access).
+nameOverride: ""
+
+image:
+  registry: ghcr.io/giddychild
+  api:
+    repository: certprep-api
+    tag: "0.1.0"
+  web:
+    repository: certprep-web
+    tag: "0.1.0"
+  pullPolicy: IfNotPresent
+  pullSecret: ghcr-pull
+
+api:
+  replicas: 2
+  port: 8000
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { cpu: "1", memory: 768Mi }
+
+web:
+  replicas: 2
+  port: 3000
+  resources:
+    requests: { cpu: 25m, memory: 128Mi }
+    limits: { cpu: "500m", memory: 512Mi }
+
+# Mock exam defaults. These are also editable per-blueprint in the database;
+# these values only seed the default blueprint on first import.
+exam:
+  questions: 70
+  minutes: 100
+
+# Non-secret environment passed to the API.
+env: {}
+
+postgres:
+  instances: 2
+  image: ghcr.io/cloudnative-pg/postgresql:16.4
+  storage:
+    size: 5Gi
+    storageClass: longhorn-r
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { cpu: "1", memory: 1Gi }
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { cpu: "250m", memory: 128Mi }
+
+# Runs `alembic upgrade head` before the API starts (sync-wave 5), and the bank
+# import after (sync-wave 10). Both are idempotent, so they re-run safely on
+# every sync.
+jobs:
+  migrate:
+    enabled: true
+  import:
+    enabled: true
+    package: az104
+    certCode: "AZ-104"
+    certName: "Microsoft Azure Administrator"
+    vendor: "Microsoft"
+
+ingress:
+  enabled: true
+  className: nginx
+  host: certprep.apps.giddyland.net
+  clusterIssuer: letsencrypt-prod
+  tls: true
+
+# Public exposure via Cloudflare Tunnel (cloudflared dials out; no inbound
+# ports). Configure the public hostname route in the Zero Trust dashboard —
+# see docs/runbooks/certprep-cloudflare-tunnel.md. Enabled in
+# values-homelab.yaml; the token comes from Vault (key cf_tunnel_token).
+cloudflare:
+  publicHost: certprep.giddyland.net
+  tunnel:
+    enabled: false
+    image: cloudflare/cloudflared:2026.5.2
+    replicas: 2
+
+externalSecret:
+  enabled: true
+  storeRef: vault-backend            # ClusterSecretStore (cross-cluster AppRole)
+  vaultPath: certprep/app            # secret/certprep/app
+  secretName: certprep-secrets
+
+networkPolicy:
+  enabled: true
+
+serviceMonitor:
+  enabled: false

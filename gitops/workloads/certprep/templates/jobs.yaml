@@ -1,0 +1,88 @@
+{{- if .Values.jobs.migrate.enabled }}
+# Schema migration. Wave 5: after Postgres is Ready, before the API rolls.
+# Alembic is idempotent, so this re-runs harmlessly on every sync.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "certprep.name" . }}-migrate
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels: { app: {{ include "certprep.name" . }}-migrate }
+    spec:
+      restartPolicy: Never
+      {{- with .Values.image.pullSecret }}
+      imagePullSecrets: [{ name: {{ . }} }]
+      {{- end }}
+      securityContext: {{- include "certprep.podSecurity" . | nindent 8 }}
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.registry }}/{{ .Values.image.api.repository }}:{{ .Values.image.api.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["alembic", "upgrade", "head"]
+          env: {{- include "certprep.apiEnv" . | nindent 12 }}
+          resources:
+            requests: { cpu: 50m, memory: 192Mi }
+            limits: { cpu: "1", memory: 512Mi }
+          securityContext: {{- include "certprep.containerSecurity" . | nindent 12 }}
+{{- end }}
+---
+{{- if .Values.jobs.import.enabled }}
+# Question bank import. Wave 10: after the API is up. The bank ships inside the
+# image, so this writes database rows only and reports every unchanged record
+# as such — safe to re-run on every sync.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "certprep.name" . }}-import
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels: { app: {{ include "certprep.name" . }}-import }
+    spec:
+      restartPolicy: Never
+      {{- with .Values.image.pullSecret }}
+      imagePullSecrets: [{ name: {{ . }} }]
+      {{- end }}
+      securityContext: {{- include "certprep.podSecurity" . | nindent 8 }}
+      containers:
+        - name: import
+          image: "{{ .Values.image.registry }}/{{ .Values.image.api.repository }}:{{ .Values.image.api.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - python
+            - -m
+            - app.cli
+            - import-bank
+            - --package
+            - {{ .Values.jobs.import.package | quote }}
+            - --cert-code
+            - {{ .Values.jobs.import.certCode | quote }}
+            - --cert-name
+            - {{ .Values.jobs.import.certName | quote }}
+            - --vendor
+            - {{ .Values.jobs.import.vendor | quote }}
+            # Exhibits are baked straight into MEDIA_ROOT, so the importer reads
+            # them from there and its copy step is a no-op.
+            - --images-dir
+            - /data/media
+          env: {{- include "certprep.apiEnv" . | nindent 12 }}
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 768Mi }
+          securityContext: {{- include "certprep.containerSecurity" . | nindent 12 }}
+{{- end }}
