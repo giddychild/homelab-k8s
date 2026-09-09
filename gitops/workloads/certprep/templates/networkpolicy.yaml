@@ -97,6 +97,11 @@ spec:
           - {{ include "certprep.name" . }}-api
           - {{ include "certprep.name" . }}-migrate
           - {{ include "certprep.name" . }}-import
+          # The nightly pg_dump CronJob. Without this the default-deny lets it
+          # resolve DNS and then hang on TCP — the same failure mode the
+          # migrate Job hit on first deploy, and just as silent, because a
+          # CronJob that never succeeds reports nothing anyone is watching.
+          - {{ include "certprep.name" . }}-pg-dump
   egress:
     - toEndpoints:
         - matchLabels:

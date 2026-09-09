@@ -33,3 +33,27 @@ spec:
 
   monitoring:
     enablePodMonitor: {{ .Values.serviceMonitor.enabled }}
+
+{{- if .Values.postgres.backup.barman.enabled }}
+  backup:
+    barmanObjectStore:
+      {{- if .Values.postgres.backup.barman.serverName }}
+      # An explicit prefix for this cluster's WAL archive and base backups.
+      # CNPG refuses to write into a non-empty archive, so restoring in place
+      # means pointing the restored cluster at a new prefix — see money's
+      # notes, which were written after hitting exactly that.
+      serverName: {{ .Values.postgres.backup.barman.serverName | quote }}
+      {{- end }}
+      destinationPath: {{ .Values.postgres.backup.barman.destinationPath | quote }}
+      endpointURL: {{ .Values.postgres.backup.barman.endpointURL | quote }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ include "certprep.name" . }}-pg-backup-s3
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: {{ include "certprep.name" . }}-pg-backup-s3
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+    retentionPolicy: {{ .Values.postgres.backup.barman.retention | quote }}
+{{- end }}

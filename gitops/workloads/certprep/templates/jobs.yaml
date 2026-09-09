@@ -33,18 +33,26 @@ spec:
             limits: { cpu: "1", memory: 512Mi }
           securityContext: {{- include "certprep.containerSecurity" . | nindent 12 }}
 {{- end }}
----
 {{- if .Values.jobs.import.enabled }}
-# Question bank import. Wave 10: after the API is up. The bank ships inside the
-# image, so this writes database rows only and reports every unchanged record
-# as such — safe to re-run on every sync.
+{{- range $i, $pkg := .Values.jobs.import.packages }}
+---
+# Question bank import, one Job per certification. Wave 10: after the API is up.
+# The banks ship inside the image, so this writes database rows only and reports
+# every unchanged record as such — safe to re-run on every sync.
+#
+# Adding a certification means adding an entry to jobs.import.packages AND
+# rebuilding the API image with its directory under data/source; the bank is
+# baked in, not mounted.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "certprep.name" . }}-import
-  labels: {{- include "certprep.labels" . | nindent 4 }}
+  name: {{ include "certprep.name" $ }}-import-{{ $pkg.package }}
+  labels: {{- include "certprep.labels" $ | nindent 4 }}
   annotations:
-    argocd.argoproj.io/sync-wave: "10"
+    # Staggered so two imports never contend for the same taxonomy rows: each
+    # sync_taxonomy call upserts domains by code, and concurrent runs against
+    # one database would deadlock on it.
+    argocd.argoproj.io/sync-wave: {{ add 10 $i | quote }}
     argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
@@ -52,37 +60,40 @@ spec:
   ttlSecondsAfterFinished: 3600
   template:
     metadata:
-      labels: { app: {{ include "certprep.name" . }}-import }
+      # The shared label is what the CiliumNetworkPolicy allows to reach
+      # Postgres; a per-package label would leave every new import blocked.
+      labels: { app: {{ include "certprep.name" $ }}-import }
     spec:
       restartPolicy: Never
-      {{- with .Values.image.pullSecret }}
+      {{- with $.Values.image.pullSecret }}
       imagePullSecrets: [{ name: {{ . }} }]
       {{- end }}
-      securityContext: {{- include "certprep.podSecurity" . | nindent 8 }}
+      securityContext: {{- include "certprep.podSecurity" $ | nindent 8 }}
       containers:
         - name: import
-          image: "{{ .Values.image.registry }}/{{ .Values.image.api.repository }}:{{ .Values.image.api.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ $.Values.image.registry }}/{{ $.Values.image.api.repository }}:{{ $.Values.image.api.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
           args:
             - python
             - -m
             - app.cli
             - import-bank
             - --package
-            - {{ .Values.jobs.import.package | quote }}
+            - {{ $pkg.package | quote }}
             - --cert-code
-            - {{ .Values.jobs.import.certCode | quote }}
+            - {{ $pkg.certCode | quote }}
             - --cert-name
-            - {{ .Values.jobs.import.certName | quote }}
+            - {{ $pkg.certName | quote }}
             - --vendor
-            - {{ .Values.jobs.import.vendor | quote }}
-            # Exhibits are baked straight into MEDIA_ROOT, so the importer reads
-            # them from there and its copy step is a no-op.
+            - {{ $pkg.vendor | quote }}
+            # Exhibits are baked into MEDIA_ROOT/<package>, so the importer
+            # reads them from there and its copy step is a no-op.
             - --images-dir
-            - /data/media
-          env: {{- include "certprep.apiEnv" . | nindent 12 }}
+            - /data/media/{{ $pkg.package }}
+          env: {{- include "certprep.apiEnv" $ | nindent 12 }}
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits: { cpu: "1", memory: 768Mi }
-          securityContext: {{- include "certprep.containerSecurity" . | nindent 12 }}
+          securityContext: {{- include "certprep.containerSecurity" $ | nindent 12 }}
+{{- end }}
 {{- end }}

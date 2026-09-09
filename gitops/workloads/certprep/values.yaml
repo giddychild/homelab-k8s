@@ -44,6 +44,9 @@ env: {}
 
 postgres:
   instances: 2
+  # NOTE: enabling backup.barman below ALSO requires switching this to the
+  # "-system-bookworm" variant — the standard image has no barman-cloud-backup
+  # binary and CNPG fails the archive command with "not found". money hit this.
   image: ghcr.io/cloudnative-pg/postgresql:16.4
   storage:
     size: 5Gi
@@ -51,6 +54,30 @@ postgres:
   resources:
     requests: { cpu: 50m, memory: 256Mi }
     limits: { cpu: "1", memory: 1Gi }
+
+  backup:
+    # A nightly pg_dump to its own PVC. On by default because it needs nothing
+    # external and the alternative is no backup at all. What it protects: a
+    # dropped table, a bad migration, a deleted Cluster. What it does not: loss
+    # of Longhorn or of the cluster, since the dumps sit on the same storage.
+    dump:
+      enabled: true
+      schedule: "20 3 * * *"      # 03:20 daily, standard 5-field cron
+      keepDays: 14
+      size: 2Gi
+      storageClass: longhorn-r2
+    # CNPG base backups + WAL archiving to S3 — real off-site, point-in-time
+    # recovery. Enable only after creating a DEDICATED bucket and a scoped IAM
+    # user and writing the keys to Vault; see the runbook. Do not reuse the
+    # Velero bucket root — that breaks Velero's BackupStorageLocation.
+    barman:
+      enabled: false
+      destinationPath: "s3://giddyland-certprep-pg-backups/"
+      endpointURL: "https://s3.us-east-1.amazonaws.com"
+      vaultPath: "certprep/backup-s3"
+      serverName: "certprep-pg"
+      schedule: "0 40 3 * * *"    # CNPG cron is 6-field: 03:40 daily
+      retention: "30d"
 
 redis:
   enabled: true
@@ -67,10 +94,15 @@ jobs:
     enabled: true
   import:
     enabled: true
-    package: az104
-    certCode: "AZ-104"
-    certName: "Microsoft Azure Administrator"
-    vendor: "Microsoft"
+    # One entry per certification, each producing its own import Job on a
+    # successive sync wave. `package` is the directory name under data/source
+    # in the API image — the bank is baked in, so adding an entry here also
+    # means rebuilding and bumping image.api.tag.
+    packages:
+      - package: az104
+        certCode: "AZ-104"
+        certName: "Microsoft Azure Administrator"
+        vendor: "Microsoft"
 
 ingress:
   enabled: true

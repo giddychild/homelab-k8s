@@ -106,9 +106,41 @@ kubectl -n certprep exec -it deploy/certprep-api -- \
 # prompts for a password (minimum 10 characters, argon2id hashed)
 ```
 
-Then mint invite codes for your friends from **Settings → Invites** in the app.
-Each code is shown **once** at creation and only its hash is stored, so it
-cannot be recovered later — reissue instead.
+Then mint invite codes for your friends from **Settings → Invite codes** in the
+app. Each code is shown **once** at creation and only its hash is stored, so it
+cannot be recovered later — revoke and reissue instead.
+
+## 4b. Adding a second certification
+
+The bank is baked into the API image, so loading another exam is a rebuild, not
+a config change:
+
+1. Stage it at `data/source/<package>/` in the certprep repo, matching the
+   az104 layout — `data/` (question JSON plus `domains.json`) and `images/`.
+2. Rebuild and push the API image. The Dockerfile copies **every** package
+   under `data/source`, so nothing there needs editing.
+3. Add an entry to `jobs.import.packages` in `values-homelab.yaml`:
+
+   ```yaml
+   jobs:
+     import:
+       packages:
+         - { package: az104, certCode: "AZ-104", certName: "…", vendor: Microsoft }
+         - { package: az305, certCode: "AZ-305", certName: "…", vendor: Microsoft }
+   ```
+
+4. Bump `image.api.tag` and push. Each package gets its own import Job on a
+   successive sync wave.
+
+A certification selector then appears in the header, and every screen —
+practice, exams, statistics, readiness, history — is scoped to the selected
+one. The choice is stored per user in `app_user.settings.active_cert`, so it
+follows the account rather than the browser.
+
+**Exhibits are stored per package** at `MEDIA_ROOT/<package>/`. This is not
+cosmetic: exhibit filenames are the source export's own question ids
+(`T1Q1_exhibit1.png`), which repeat across exports, so a flat directory would
+let one exam silently overwrite another's diagrams.
 
 ## 5. Verify
 
@@ -126,6 +158,42 @@ curl -s https://certprep.giddyland.net/api/health          # {"status":"ok",...}
 curl -s https://certprep.giddyland.net/api/ready           # database: ok
 curl -so /dev/null -w '%{http_code}\n' https://certprep.giddyland.net/login   # 200
 ```
+
+## Backups
+
+Two independent paths, protecting against different failures.
+
+**Nightly `pg_dump` — on by default.** A CronJob at 03:20 writes a compressed
+custom-format dump to its own `certprep-pg-dumps` PVC and keeps 14 days.
+Self-contained, no external account. It covers a dropped table, a bad
+migration, or the CNPG Cluster being deleted. It does **not** cover losing
+Longhorn or the cluster, because the dumps sit on the same storage.
+
+```bash
+kubectl -n certprep get cronjob certprep-pg-dump
+kubectl -n certprep create job --from=cronjob/certprep-pg-dump dump-now   # on demand
+kubectl -n certprep logs job/dump-now
+
+# Restore (destructive — it replaces the live database):
+kubectl -n certprep run restore --rm -it --restart=Never \
+  --image=ghcr.io/cloudnative-pg/postgresql:16.4 -- bash
+#   pg_restore --clean --if-exists -h certprep-pg-rw -U certprep -d certprep /dumps/<file>
+```
+
+Note the question bank is *not* what this protects — it rebuilds from the image
+in seconds. What is irreplaceable is everyone's attempt history, mastery state,
+exam results and flags.
+
+**Barman to S3 — off by default.** CNPG base backups plus continuous WAL
+archiving give genuine off-site point-in-time recovery. To enable:
+
+1. Create a **dedicated** bucket and a scoped IAM user. Do not reuse the Velero
+   bucket root — sharing it breaks Velero's BackupStorageLocation.
+2. Write `access_key_id` / `secret_access_key` to Vault at
+   `secret/certprep/backup-s3`.
+3. Set `postgres.backup.barman.enabled: true` **and** switch
+   `postgres.image` to the `-system-bookworm` variant — the standard image has
+   no `barman-cloud-backup` binary and archiving fails with "not found".
 
 ## Notes and gotchas
 
@@ -147,3 +215,13 @@ curl -so /dev/null -w '%{http_code}\n' https://certprep.giddyland.net/login   # 
 - **Re-running the import is safe.** It is keyed on question id and reports
   unchanged records as unchanged; the sync-wave 10 hook re-runs it on every
   ArgoCD sync by design.
+- **Exhibits 404 briefly on the deploy that introduces per-package media.**
+  The API rolls at wave 8 with images under `az104/`, while the database still
+  holds the old flat filenames until the import at wave 10 rewrites them. It is
+  a window of roughly a minute and it self-heals; nothing needs doing. It
+  applies only to that one upgrade.
+- **Admin screens live at `/bank` and `/settings`.** `/bank` covers search and
+  editing, report triage, and the import reports that were previously only
+  visible in `kubectl logs`. Editing never touches the immutable source record,
+  and every change writes an attributed row visible under the question's
+  History tab.

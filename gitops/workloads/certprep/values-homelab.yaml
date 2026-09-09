@@ -1,7 +1,7 @@
 # apps-prod overrides for CertPrep.
 image:
-  api: { tag: "0.1.1" }
-  web: { tag: "0.1.0" }
+  api: { tag: "0.2.0" }
+  web: { tag: "0.2.0" }
 
 api:
   replicas: 2

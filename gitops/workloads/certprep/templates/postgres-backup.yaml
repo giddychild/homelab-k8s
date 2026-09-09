@@ -1,0 +1,168 @@
+{{- $name := include "certprep.name" . -}}
+# Two independent backup paths, because they protect against different things.
+#
+#   1. dump    — a nightly pg_dump onto its own Longhorn PVC. Self-contained,
+#                needs no external account, and is what actually exists on day
+#                one. It survives a dropped table, a bad migration and a
+#                deleted CNPG Cluster. It does NOT survive the storage layer
+#                or the cluster itself being lost, because it lives on the
+#                same Longhorn.
+#   2. barman  — CNPG's base backups plus continuous WAL archiving to S3, for
+#                point-in-time recovery that is genuinely off-site. Off until
+#                a bucket and credentials exist; see the runbook.
+#
+# The question bank is NOT the thing being protected — it is baked into the API
+# image and rebuilds in seconds. What is irreplaceable is everyone's attempt
+# history, mastery state, exam results and flags, which exists nowhere else.
+{{- if .Values.postgres.backup.dump.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}-pg-dumps
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: {{ .Values.postgres.backup.dump.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.postgres.backup.dump.size }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}-pg-dump
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.postgres.backup.dump.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # A dump that cannot finish is not worth retrying all night; it will be
+      # attempted again on the next schedule either way.
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app: {{ $name }}-pg-dump
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            # postgres in the CNPG image — not the app's 1001, so this cannot
+            # reuse the shared podSecurity helper. fsGroup makes the dump PVC
+            # writable by that uid.
+            runAsUser: 26
+            runAsGroup: 26
+            fsGroup: 26
+            # The namespace enforces the "restricted" Pod Security Standard,
+            # which rejects a pod without this.
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: dump
+              image: {{ .Values.postgres.image }}
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: PGHOST
+                  value: {{ $name }}-pg-rw
+                - name: PGDATABASE
+                  value: certprep
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $name }}-pg-app
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $name }}-pg-app
+                      key: password
+                - name: KEEP_DAYS
+                  value: {{ .Values.postgres.backup.dump.keepDays | quote }}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+                  target="/dumps/certprep-${stamp}.dump"
+
+                  # Write to a temporary name and rename only on success, so a
+                  # dump interrupted half-way never sits in the directory
+                  # looking like a usable backup.
+                  pg_dump --format=custom --compress=9 --file="${target}.partial"
+                  mv "${target}.partial" "${target}"
+                  echo "wrote ${target} ($(du -h "${target}" | cut -f1))"
+
+                  # Prune old dumps, but only ever ones that completed.
+                  find /dumps -name 'certprep-*.dump' -type f \
+                       -mtime "+${KEEP_DAYS}" -print -delete
+                  # Clear partials left behind by an earlier failed run.
+                  find /dumps -name '*.partial' -type f -mtime +1 -print -delete
+
+                  echo "retained:"
+                  ls -lh /dumps
+              volumeMounts:
+                - name: dumps
+                  mountPath: /dumps
+              resources:
+                requests: { cpu: 25m, memory: 128Mi }
+                limits: { cpu: "500m", memory: 512Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: dumps
+              persistentVolumeClaim:
+                claimName: {{ $name }}-pg-dumps
+{{- end }}
+
+{{- if .Values.postgres.backup.barman.enabled }}
+---
+# S3 credentials for CNPG Barman, materialized from Vault by ESO.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $name }}-pg-backup-s3
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+  annotations:
+    # Same wave as the Cluster: ArgoCD applies every wave -5 resource before
+    # waiting on any of them, so the secret exists by the time CNPG reads it.
+    # A later wave would deadlock — the Cluster never goes Healthy without the
+    # secret, and ArgoCD never advances past an unhealthy wave.
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: {{ .Values.externalSecret.storeRef }}
+    kind: ClusterSecretStore
+  target:
+    name: {{ $name }}-pg-backup-s3
+    creationPolicy: Owner
+  data:
+    - secretKey: ACCESS_KEY_ID
+      remoteRef:
+        key: {{ .Values.postgres.backup.barman.vaultPath }}
+        property: access_key_id
+    - secretKey: ACCESS_SECRET_KEY
+      remoteRef:
+        key: {{ .Values.postgres.backup.barman.vaultPath }}
+        property: secret_access_key
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ $name }}-pg-daily
+  labels: {{- include "certprep.labels" . | nindent 4 }}
+spec:
+  # CNPG cron is six-field — seconds come first.
+  schedule: {{ .Values.postgres.backup.barman.schedule | quote }}
+  backupOwnerReference: self
+  cluster:
+    name: {{ $name }}-pg
+{{- end }}
