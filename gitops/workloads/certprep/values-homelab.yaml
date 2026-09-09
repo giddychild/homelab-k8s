@@ -12,7 +12,7 @@ postgres:
   instances: 2
   storage:
     size: 5Gi
-    storageClass: longhorn-r
+    storageClass: longhorn-r2   # 2 replicas; matches money/learnquest
 
 ingress:
   enabled: true

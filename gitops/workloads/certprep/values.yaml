@@ -47,7 +47,7 @@ postgres:
   image: ghcr.io/cloudnative-pg/postgresql:16.4
   storage:
     size: 5Gi
-    storageClass: longhorn-r
+    storageClass: longhorn-r2   # 2 replicas; matches money/learnquest
   resources:
     requests: { cpu: 50m, memory: 256Mi }
     limits: { cpu: "1", memory: 1Gi }
