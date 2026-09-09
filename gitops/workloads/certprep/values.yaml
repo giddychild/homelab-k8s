@@ -39,6 +39,17 @@ exam:
   questions: 70
   minutes: 100
 
+auth:
+  # Sign out after this many minutes with no request from the browser. The
+  # 30-day absolute session ttl still applies; this is the shorter sliding
+  # one, enforced server-side so closing the laptop really does end it.
+  #
+  # Five is deliberately tight for an internet-facing login. The browser is
+  # warned a minute before it fires and can stay signed in with one tap, so
+  # a long question does not silently cost a session. Raise it here if the
+  # warning starts interrupting exams; 0 disables idle expiry entirely.
+  idleMinutes: 5
+
 # Non-secret environment passed to the API.
 env: {}
 

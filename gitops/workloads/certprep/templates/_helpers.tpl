@@ -42,6 +42,8 @@ Vault via ESO.
   value: {{ .Values.exam.questions | quote }}
 - name: DEFAULT_EXAM_MINUTES
   value: {{ .Values.exam.minutes | quote }}
+- name: SESSION_IDLE_MINUTES
+  value: {{ .Values.auth.idleMinutes | quote }}
 {{- range $k, $v := .Values.env }}
 - name: {{ $k }}
   value: {{ $v | quote }}
