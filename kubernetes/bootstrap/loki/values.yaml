@@ -20,12 +20,24 @@ loki:
     type: filesystem
   limits_config:
     retention_period: 168h   # keep logs 7 days
+  # retention_period above is only ENFORCED by the compactor when retention is
+  # enabled. It was off, so nothing was ever deleted: the 10Gi volume filled up
+  # (~4 months), chunk flushes failed with "no space left on device", in-memory
+  # streams hit the 5000 cap, Loki 429'd pushes and Promtail went unready.
+  compactor:
+    retention_enabled: true
+    delete_request_store: filesystem   # required when retention is enabled
+    retention_delete_delay: 2h
 
 singleBinary:
   replicas: 1
   persistence:
     enabled: true
     storageClass: longhorn
+    # Live PVC storage-loki-0 was expanded to 20Gi in place (kubectl patch,
+    # 2026-10-02). Leave this at 10Gi: volumeClaimTemplates are immutable, so
+    # changing it here would make ArgoCD fail to sync the StatefulSet. To grow
+    # again, patch the PVC directly (Longhorn supports online expansion).
     size: 10Gi
 
 # Turn off everything that belongs to scalable mode / extras.
