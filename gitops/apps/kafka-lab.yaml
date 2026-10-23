@@ -2,7 +2,7 @@
 #
 # This file is the only kafka-lab piece in this (public) repo:
 #   * AppProject `kafka-lab` — fences what the lab repo may deploy, and owns the
-#     `ci` role whose token the GitLab pipeline uses (get + sync only).
+#     GitLab pipeline roles: `ci-plan` (get) and `ci-sync` (get + sync).
 #   * Application `kafka-lab` — app-of-apps root for <lab repo>/argocd/apps.
 #     Auto-syncs so new child Applications appear, but every CHILD is manual
 #     sync: GitLab's manual `apply` job (or `make apply`) rolls changes out.
@@ -32,12 +32,19 @@ spec:
     - { group: apiextensions.k8s.io, kind: CustomResourceDefinition }
     - { group: rbac.authorization.k8s.io, kind: ClusterRole }
     - { group: rbac.authorization.k8s.io, kind: ClusterRoleBinding }
+  # Two CI roles so the token exposed to MR pipelines (any branch) is read-only;
+  # only the protected-branch token can change the cluster. Neither can
+  # create, update, delete or override apps.
   roles:
-    - name: ci
-      description: GitLab CI (kafka-lab) — diff and sync only; cannot delete or edit apps
+    - name: ci-plan
+      description: GitLab CI plan job (kafka-lab) — read-only, for `argocd app diff`
       policies:
-        - p, proj:kafka-lab:ci, applications, get, kafka-lab/*, allow
-        - p, proj:kafka-lab:ci, applications, sync, kafka-lab/*, allow
+        - p, proj:kafka-lab:ci-plan, applications, get, kafka-lab/*, allow
+    - name: ci-sync
+      description: GitLab CI apply job (kafka-lab, protected main only) — get + sync
+      policies:
+        - p, proj:kafka-lab:ci-sync, applications, get, kafka-lab/*, allow
+        - p, proj:kafka-lab:ci-sync, applications, sync, kafka-lab/*, allow
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
