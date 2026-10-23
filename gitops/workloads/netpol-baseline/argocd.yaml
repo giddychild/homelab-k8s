@@ -61,6 +61,10 @@ spec:
         - { matchPattern: "*.grafana.com" }
         - { matchPattern: "*.cnpg.io" }
         - { matchPattern: "*.gitops.dev" }
+        # kafka-lab: private GitLab repo + Strimzi Helm chart index (chart
+        # tarballs themselves come from GitHub release assets, covered above).
+        - { matchName:    "gitlab.com" }
+        - { matchName:    "strimzi.io" }
       toPorts:
         - ports:
             - { port: "443", protocol: TCP }

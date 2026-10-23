@@ -53,6 +53,21 @@ spec:
         # We use File System Backup, not volume snapshots → no snapshot location.
         snapshotsEnabled: false
         deployNodeAgent: true                   # node-agent daemonset for kopia FSB
+        # Volume policy: never file-copy Kafka broker/controller volumes.
+        # Kafka DR is replication (MirrorMaker 2, kafka-lab Phase 4), and a
+        # file copy under a live broker is not a consistent snapshot anyway.
+        # Kafka *resources* (CRs, Strimzi CA secrets) are still backed up.
+        configMaps:
+          backup-volume-policy:
+            data:
+              policy.yaml: |
+                version: v1
+                volumePolicies:
+                  - conditions:
+                      storageClass:
+                        - longhorn-kafka
+                    action:
+                      type: skip
         # Daily backup of everything, FS-backed, kept 3 days.
         schedules:
           daily:
@@ -61,6 +76,9 @@ spec:
             template:
               ttl: 72h
               defaultVolumesToFsBackup: true
+              resourcePolicy:
+                kind: configmap
+                name: velero-backup-volume-policy   # chart prefixes configMaps keys with the release name
               includedNamespaces:
                 - "*"
   destination:
