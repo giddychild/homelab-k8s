@@ -1,0 +1,61 @@
+# kafka-lab — Kafka learning lab, managed from a PRIVATE GitLab repo.
+#
+# This file is the only kafka-lab piece in this (public) repo:
+#   * AppProject `kafka-lab` — fences what the lab repo may deploy, and owns the
+#     `ci` role whose token the GitLab pipeline uses (get + sync only).
+#   * Application `kafka-lab` — app-of-apps root for <lab repo>/argocd/apps.
+#     Auto-syncs so new child Applications appear, but every CHILD is manual
+#     sync: GitLab's manual `apply` job (or `make apply`) rolls changes out.
+#
+# Repo creds: Secret `repo-kafka-lab` (ESO, from Vault secret/kafka-lab-repo)
+# — see gitops/workloads/eso-config/kafka-lab-repo-externalsecret.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: kafka-lab
+  namespace: argocd
+spec:
+  description: Kafka learning lab (Strimzi) — gitlab.com/giddychild/kafka-lab
+  sourceRepos:
+    - https://gitlab.com/giddychild/kafka-lab.git
+    - https://strimzi.io/charts/
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: strimzi-system
+    - server: https://kubernetes.default.svc
+      namespace: "kafka-*"
+  # Cluster-scoped kinds the lab may own: its namespaces + StorageClass, and
+  # what the Strimzi operator chart installs (CRDs, ClusterRoles/Bindings).
+  clusterResourceWhitelist:
+    - { group: "", kind: Namespace }
+    - { group: storage.k8s.io, kind: StorageClass }
+    - { group: apiextensions.k8s.io, kind: CustomResourceDefinition }
+    - { group: rbac.authorization.k8s.io, kind: ClusterRole }
+    - { group: rbac.authorization.k8s.io, kind: ClusterRoleBinding }
+  roles:
+    - name: ci
+      description: GitLab CI (kafka-lab) — diff and sync only; cannot delete or edit apps
+      policies:
+        - p, proj:kafka-lab:ci, applications, get, kafka-lab/*, allow
+        - p, proj:kafka-lab:ci, applications, sync, kafka-lab/*, allow
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kafka-lab
+  namespace: argocd
+spec:
+  # Root lives in `default` because it creates Application objects in argocd;
+  # the children it creates are pinned to project kafka-lab.
+  project: default
+  source:
+    repoURL: https://gitlab.com/giddychild/kafka-lab.git
+    targetRevision: main
+    path: argocd/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
