@@ -15,9 +15,9 @@ metadata:
   name: kafka-lab
   namespace: argocd
 spec:
-  description: Kafka learning lab (Strimzi) — gitlab.com/giddychild/kafka-lab
+  description: Kafka learning lab (Strimzi) — gitlab.com/kafka694143/kafka-lab
   sourceRepos:
-    - https://gitlab.com/giddychild/kafka-lab.git
+    - https://gitlab.com/kafka694143/kafka-lab.git
     - https://strimzi.io/charts/
   destinations:
     - server: https://kubernetes.default.svc
@@ -56,7 +56,7 @@ spec:
   # the children it creates are pinned to project kafka-lab.
   project: default
   source:
-    repoURL: https://gitlab.com/giddychild/kafka-lab.git
+    repoURL: https://gitlab.com/kafka694143/kafka-lab.git
     targetRevision: main
     path: argocd/apps
   destination:
