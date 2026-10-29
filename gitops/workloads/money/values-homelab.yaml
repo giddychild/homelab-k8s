@@ -1,4 +1,4 @@
-﻿# Apps-cluster overrides for the homelab (Dell R730XD / ESXi).
+# Apps-cluster overrides for the homelab (Dell R730XD / ESXi).
 # Applied by ArgoCD on top of values.yaml.
 
 # Locally-built images pushed to GHCR (private; pulled via ghcr-pull secret).
@@ -11,7 +11,7 @@ image:
 # Vault path aligned to the apps-prod AppRole policy (secret/data/money/*).
 # Secret lives at secret/money/app with properties:
 #   redis_url, jwt_private_key, jwt_public_key
-# (DATABASE_URL is built from CNPG's money-pg-app secret at runtime â€” see
+# (DATABASE_URL is built from CNPG's money-pg-app secret at runtime — see
 # _helpers.tpl. The database_url property in Vault, if any, is unused and
 # safe to delete.)
 externalSecrets:
@@ -20,9 +20,9 @@ externalSecrets:
   # then ESO syncs it and saved bill logins (username/password) get encrypted.
   # Leave false until provisioned, or ESO errors on the missing Vault property.
   credentialKey: true
-  # smtp_password is in Vault (Gmail app password) â†’ sync it for email reset.
+  # smtp_password is in Vault (Gmail app password) → sync it for email reset.
   smtpPassword: true
-  # discord_webhook_url is in Vault â†’ sync it. Turning this on also creates
+  # discord_webhook_url is in Vault → sync it. Turning this on also creates
   # the money-api-to-discord CiliumNetworkPolicy (egress allow to discord.com
   # / discordapp.com), and money.appEnv mounts DISCORD_WEBHOOK_URL from the
   # secret. The API posts a message on every successful login + new signup
@@ -57,7 +57,7 @@ ingress:
 postgres:
   instances: 2
   # "system" flavor = standard (incl. pgvector) PLUS barman-cloud binaries, which
-  # the in-tree barmanObjectStore backup needs (the "standard" image lacks them â†’
+  # the in-tree barmanObjectStore backup needs (the "standard" image lacks them →
   # "barman-cloud-backup: not found"). system is deprecated long-term; the future
   # path is the Barman Cloud Plugin, but this keeps backups working today.
   image: ghcr.io/cloudnative-pg/postgresql:16-system-bookworm
@@ -65,9 +65,9 @@ postgres:
     storageClass: longhorn-r2
     size: 20Gi
   backup:
-    # CNPG Barman â†’ AWS S3 (base backups + WAL archiving = point-in-time recovery).
+    # CNPG Barman → AWS S3 (base backups + WAL archiving = point-in-time recovery).
     # Flip to true AFTER the user-side steps in docs/runbooks/money-db-backups.md:
-    #   1. create a DEDICATED bucket (NOT the Velero bucket â€” sharing its root
+    #   1. create a DEDICATED bucket (NOT the Velero bucket — sharing its root
     #      breaks Velero's BSL) + a scoped IAM user
     #   2. write access_key_id / secret_access_key to Vault secret/money/backup-s3
     # Then ESO syncs money-pg-backup-s3 and CNPG starts archiving.
@@ -80,16 +80,16 @@ postgres:
     # check against two clusters sharing the same prefix). Going forward, this
     # cluster's backups + WALs live under .../money-pg-v2/. The old money-pg/
     # tree is historical only and can be deleted from S3 once recovery is
-    # confirmed good (don't delete it until then â€” we may need to re-restore).
+    # confirmed good (don't delete it until then — we may need to re-restore).
     serverName: "money-pg-v2"
   # PITR / recovery from S3. Flip enabled=true ONLY when bootstrapping a fresh
   # cluster from an existing barman archive (e.g. after accidental cascade-delete
   # destroyed the live data). When toggling on, ALSO set backup.serverName above
-  # to a NEW prefix â€” recovery reads from recover.serverName, the cluster writes
+  # to a NEW prefix — recovery reads from recover.serverName, the cluster writes
   # to backup.serverName, and the two must differ or CNPG refuses to start with
   # "WAL archive check failed: Expected empty archive". See the full procedure
   # in docs/runbooks/money-cnpg-restore.md. CNPG only honors bootstrap on initial
-  # cluster create, so leaving enabled=true after the fact is harmless â€” but
+  # cluster create, so leaving enabled=true after the fact is harmless — but
   # disabling it once restore is confirmed healthy keeps intent clear.
   #
   # Last used: 2026-05-30, restored from base backup 20260530T033002 after the
@@ -102,11 +102,11 @@ redis:
   storage:
     storageClass: longhorn-r1
 
-# Network policies â€” full default-deny + scoped allows for money. Template
+# Network policies — full default-deny + scoped allows for money. Template
 # rewritten in the 2026-05-28 security pass: DNS proxy enabled (cloudflared
 # FQDN egress to *.cloudflare.com works), intra-namespace egress allowed
 # (web -> api), postgres + redis ingress allows for api/worker/migrate.
-# Rollback: set enabled=false, push â€” ArgoCD removes all CNPs in ~60s.
+# Rollback: set enabled=false, push — ArgoCD removes all CNPs in ~60s.
 networkPolicy:
   enabled: true
   ollamaCidr: "192.168.216.0/24"
@@ -132,7 +132,7 @@ cloudflare:
 
 # In-cluster MinIO for receipt photo storage. Flip these to true together with
 # externalSecrets.storage AFTER writing storage_access_key + storage_secret_key
-# to Vault secret/money/app â€” see docs/runbooks/money-receipts-storage.md.
+# to Vault secret/money/app — see docs/runbooks/money-receipts-storage.md.
 minio:
   enabled: false
 storage:
