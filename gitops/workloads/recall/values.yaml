@@ -91,6 +91,8 @@ externalSecrets:
     - anthropic_api_key
     - groq_api_key
     - cf_tunnel_token
+    - aws_access_key_id        # IAM user scoped to the transcribe staging bucket + Transcribe
+    - aws_secret_access_key
 
 config:
   environment: production
@@ -107,8 +109,12 @@ config:
   s3Region: us-east-1
   s3BucketAudio: giddyland-recall-audio
   s3EndpointUrl: ""                    # empty = real AWS
+  # transcriptionProvider: aws -> S3 is staging only; audio/JSON/job deleted after each call.
+  awsRegion: us-east-1
+  awsTranscribeBucket: giddyland-recall-transcribe-staging
+  awsTranscribeLanguage: en-US
   ollamaUrl: http://ollama.ai-ops.svc.cluster.local:11434
-  anthropicModel: claude-opus-4-8
+  anthropicModel: claude-opus-5-5
   groqModel: whisper-large-v3-turbo
   embeddingModel: nomic-embed-text
 

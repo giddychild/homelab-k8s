@@ -2,9 +2,9 @@
 # homelab-k8s GitOps repo copy of the chart).
 image:
   api:
-    tag: "0.2.0"   # P5 extraction + P6 project brain + P7 semantic search & RAG chat
+    tag: "0.3.0"   # browser recording, audio in Postgres, AWS Transcribe, Claude Opus 5.5
   web:
-    tag: "0.1.6"   # security: Next.js 15.5.24 (CVE-2026-75604) + node 22 base
+    tag: "0.2.0"   # record page, share target, output picker, token refresh (incl. 0.1.6 fix)
 
 # Web UI is built + CI-verified — deploy the full app.
 web:
@@ -26,11 +26,11 @@ config:
   registrationMode: open
   # set to your Recall login email to get the admin flag
   adminEmails: ""
-  # AI + audio start on the safe/no-cost path so the app runs before keys/buckets exist.
-  # Flip these to anthropic / groq / s3 once Vault has the keys + the S3 bucket exists.
-  aiProvider: "null"
+  # Claude for outputs (key in Vault). AWS Transcribe with the S3 bucket as delete-after-use
+  # staging only: recordings + transcripts stay in Postgres here (docs/runbooks/aws-transcribe.md).
+  aiProvider: anthropic
   embeddingProvider: "null"
-  transcriptionProvider: "null"
+  transcriptionProvider: aws
   blobStore: localfs
   s3BucketAudio: giddyland-recall-audio
 

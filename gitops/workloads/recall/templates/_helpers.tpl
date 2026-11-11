@@ -56,6 +56,12 @@ recall-pg-app holds IS the password.
   value: {{ .Values.config.s3BucketAudio | quote }}
 - name: S3_ENDPOINT_URL
   value: {{ .Values.config.s3EndpointUrl | quote }}
+- name: AWS_REGION
+  value: {{ .Values.config.awsRegion | quote }}
+- name: AWS_TRANSCRIBE_BUCKET
+  value: {{ .Values.config.awsTranscribeBucket | quote }}
+- name: AWS_TRANSCRIBE_LANGUAGE
+  value: {{ .Values.config.awsTranscribeLanguage | quote }}
 - name: OLLAMA_URL
   value: {{ .Values.config.ollamaUrl | quote }}
 - name: ANTHROPIC_MODEL
@@ -78,6 +84,12 @@ recall-pg-app holds IS the password.
 - name: S3_SECRET_ACCESS_KEY
   valueFrom:
     secretKeyRef: { name: recall-secrets, key: s3_secret_access_key, optional: true }
+- name: AWS_ACCESS_KEY_ID
+  valueFrom:
+    secretKeyRef: { name: recall-secrets, key: aws_access_key_id, optional: true }
+- name: AWS_SECRET_ACCESS_KEY
+  valueFrom:
+    secretKeyRef: { name: recall-secrets, key: aws_secret_access_key, optional: true }
 - name: ANTHROPIC_API_KEY
   valueFrom:
     secretKeyRef: { name: recall-secrets, key: anthropic_api_key, optional: true }
