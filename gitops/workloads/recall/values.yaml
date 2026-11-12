@@ -96,10 +96,11 @@ externalSecrets:
 
 config:
   environment: production
-  # Canonical public URL (Cloudflare Tunnel). recall.apps.giddyland.net stays as the internal
-  # LAN/Tailscale ingress host + tunnel origin. Both are allowed as CORS origins.
-  publicBaseUrl: https://recall.giddyland.net
-  corsOrigins: "https://recall.giddyland.net,https://recall.apps.giddyland.net"
+  # Canonical public URL (Cloudflare Tunnel): the app is branded ReeCord. The old
+  # recall.giddyland.net hostname stays routed so existing installs/bookmarks keep working;
+  # recall.apps.giddyland.net is the internal LAN/Tailscale ingress host. All allowed for CORS.
+  publicBaseUrl: https://reecord.giddyland.net
+  corsOrigins: "https://reecord.giddyland.net,https://recall.giddyland.net,https://recall.apps.giddyland.net"
   registrationMode: closed
   adminEmails: ""
   aiProvider: anthropic

@@ -2,9 +2,9 @@
 # homelab-k8s GitOps repo copy of the chart).
 image:
   api:
-    tag: "0.3.0"   # browser recording, audio in Postgres, AWS Transcribe, Claude Opus 5.5
+    tag: "0.4.0"   # ReeCord: delete meetings/outputs/items, workspace lists
   web:
-    tag: "0.2.0"   # record page, share target, output picker, token refresh (incl. 0.1.6 fix)
+    tag: "0.3.0"   # ReeCord: rename, share outputs, clickable dashboard, deletes
 
 # Web UI is built + CI-verified — deploy the full app.
 web:
