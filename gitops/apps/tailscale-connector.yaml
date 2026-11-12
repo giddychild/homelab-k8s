@@ -1,0 +1,20 @@
+# Tailscale Connector(s) — remote access to the home LAN over the tailnet (subnet router).
+# Connector is cluster-scoped; the operator creates its proxy pod in the `tailscale` ns.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tailscale-connector
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/giddychild/homelab-k8s.git
+    targetRevision: main
+    path: gitops/workloads/tailscale-connector
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tailscale
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

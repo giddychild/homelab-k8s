@@ -1,0 +1,15 @@
+# Tailscale subnet router for the home LAN, run by the Tailscale operator (no VM needed).
+# Makes 192.168.216.0/24 (apps-prod API .204, homelab VIP .200, Vault/ingress .230,
+# mgmt-jump .30, ESXi .216) reachable from tailnet devices when away from home.
+# After the first sync, approve the route in the Tailscale admin console (Machines ->
+# homelab-subnet-router -> Edit route settings), unless an autoApprovers rule covers tag:k8s.
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: homelab-subnet-router
+spec:
+  hostname: homelab-subnet-router
+  replicas: 1
+  subnetRouter:
+    advertiseRoutes:
+      - 192.168.216.0/24
