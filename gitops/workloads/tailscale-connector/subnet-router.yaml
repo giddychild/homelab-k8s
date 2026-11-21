@@ -13,3 +13,8 @@ spec:
   subnetRouter:
     advertiseRoutes:
       - 192.168.216.0/24
+  # Also offer this node as an EXIT NODE so a travelling laptop can send all
+  # internet traffic out via the home connection (residential IP). Approve it
+  # in the admin console (Machines -> homelab-subnet-router -> Edit route
+  # settings -> Use as exit node) unless an autoApprovers rule covers it.
+  exitNode: true
